@@ -20,7 +20,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Kırmızı/Siyah Tema CSS
 st.markdown("""
     <style>
     .stApp { background-color: #121212; color: #e0e0e0; }
@@ -35,77 +34,81 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. VERİ YÜKLEME (GÜNCELLENMİŞ VE SAĞLAMLAŞTIRILMIŞ)
+# 2. VERİ YÜKLEME VE SÜTUN ONARIMI
 # -----------------------------------------------------------------------------
 @st.cache_data
-def load_data():
-    # Google Drive Linki
+def load_data_raw():
+    # Google Drive'dan ham veriyi çek
     file_id = '1MUbla2YNYsd7sq61F8QL4OBnitw8tsEE'
     url = f'https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv'
     
     try:
         df = pd.read_csv(url)
-        
-        # --- KRİTİK DÜZELTME: Sütun İsimlerini Temizle ---
-        # " Name " gibi boşluklu sütunları "Name" yapar
+        # Sütun isimlerindeki gereksiz boşlukları temizle (Örn: " Name " -> "Name")
         df.columns = df.columns.str.strip()
-        
+        return df
     except Exception as e:
-        st.error(f"❌ Veri indirilemedi. Hata: {e}")
-        return None, None
+        return None
 
-    # --- Veri Ön İşleme Fonksiyonları ---
-    def normalize_name(text):
-        if not isinstance(text, str): return ""
-        text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
-        return text.lower().strip()
+# Veriyi yükle
+with st.spinner('Veriler indiriliyor...'):
+    df = load_data_raw()
 
-    def work_rate_score(wr):
-        if not isinstance(wr, str): return 1
-        scores = {'Low': 1, 'Medium': 2, 'High': 3}
-        parts = wr.split('/')
-        if len(parts) == 2:
-            return scores.get(parts[0].strip(), 1) + scores.get(parts[1].strip(), 1)
-        return 2
-
-    # --- 'Name' Sütunu Kontrolü ---
-    if 'Name' not in df.columns:
-        st.error("CSV dosyasında 'Name' sütunu bulunamadı! Lütfen sütun isminin 'Name' olduğundan emin olun.")
-        # Programın çökmemesi için boş döndür
-        return None, None
-    
-    # 'Clean_Name' Oluştur (Hata veren yer burasıydı, artık garanti)
-    df['Clean_Name'] = df['Name'].apply(normalize_name)
-    
-    # Work Rate skorla
-    if 'Work Rate' in df.columns:
-        df['Work_Rate_Score'] = df['Work Rate'].apply(work_rate_score)
-    else:
-        df['Work_Rate_Score'] = 2 # Sütun yoksa varsayılan değer ata
-    
-    # Sayısal özellikler
-    features = [
-        'Overall', 'Potential', 'Value(£)', 'Wage(£)', 
-        'Age', 'International Reputation', 'Skill Moves', 
-        'Weak Foot', 'Special', 'Work_Rate_Score',
-        'Height(cm.)', 'Weight(lbs.)'
-    ]
-    
-    # Sadece CSV'de mevcut olan özellikleri al
-    available_features = [f for f in features if f in df.columns]
-    
-    # Eksik verileri doldur
-    df[available_features] = df[available_features].fillna(df[available_features].median())
-    
-    return df, available_features
-
-# Yükleme Göstergesi
-with st.spinner('Veriler Google Drive üzerinden indiriliyor ve işleniyor...'):
-    df, feature_cols = load_data()
-
-# Eğer veri yüklenemediyse durdur
 if df is None:
+    st.error("❌ Veri indirilemedi. İnternet bağlantınızı kontrol edin.")
     st.stop()
+
+# --- SÜTUN EŞLEŞTİRME (HATA ÇÖZÜMÜ BURADA) ---
+# Eğer 'Name' sütunu yoksa kullanıcıya seçtiriyoruz
+if 'Name' not in df.columns:
+    st.warning("⚠️ Otomatik sütun eşleşmesi yapılamadı. Lütfen aşağıdaki listeden **Futbolcu İsimlerinin** olduğu sütunu seçin.")
+    
+    # Kullanıcıya tüm sütunları göster
+    selected_name_col = st.selectbox("İsim Sütunu:", df.columns)
+    
+    # Seçilen sütunu 'Name' olarak kopyala
+    if selected_name_col:
+        df['Name'] = df[selected_name_col]
+        st.success(f"✅ '{selected_name_col}' sütunu İsim sütunu olarak ayarlandı.")
+    else:
+        st.stop()
+
+# --- VERİ ÖN İŞLEME DEVAMI ---
+def normalize_name(text):
+    if not isinstance(text, str): return ""
+    text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
+    return text.lower().strip()
+
+def work_rate_score(wr):
+    if not isinstance(wr, str): return 1
+    scores = {'Low': 1, 'Medium': 2, 'High': 3}
+    parts = wr.split('/')
+    if len(parts) == 2:
+        return scores.get(parts[0].strip(), 1) + scores.get(parts[1].strip(), 1)
+    return 2
+
+# Artık 'Name' sütunumuzun olduğundan eminiz
+df['Clean_Name'] = df['Name'].apply(normalize_name)
+
+if 'Work Rate' in df.columns:
+    df['Work_Rate_Score'] = df['Work Rate'].apply(work_rate_score)
+else:
+    df['Work_Rate_Score'] = 2
+
+# Sayısal özellikler
+features_list = [
+    'Overall', 'Potential', 'Value(£)', 'Wage(£)', 
+    'Age', 'International Reputation', 'Skill Moves', 
+    'Weak Foot', 'Special', 'Work_Rate_Score',
+    'Height(cm.)', 'Weight(lbs.)'
+]
+
+# Mevcut olan özellikleri seç
+available_features = [f for f in features_list if f in df.columns]
+
+# Eksikleri doldur
+df[available_features] = df[available_features].fillna(df[available_features].median())
+
 
 # -----------------------------------------------------------------------------
 # 3. MANTIKSAL FONKSİYONLAR
@@ -113,12 +116,10 @@ if df is None:
 def get_player_suggestions(df, search_term):
     clean_term = unicodedata.normalize('NFKD', search_term).encode('ASCII', 'ignore').decode('utf-8').lower().strip()
     
-    # Tam Eşleşme
     matches = df[df['Clean_Name'].str.contains(clean_term, na=False)]
     if not matches.empty:
         return matches.sort_values(by='Overall', ascending=False).iloc[0], None
     
-    # Fuzzy Match
     all_names = df['Clean_Name'].unique().tolist()
     close_matches = difflib.get_close_matches(clean_term, all_names, n=1, cutoff=0.6)
     
@@ -131,14 +132,11 @@ def get_player_suggestions(df, search_term):
 
 def calculate_similarity(df, target_player, features):
     target_pos = target_player['Position']
-    
-    # MEVKİ FİLTRESİ
     pool = df[df['Position'] == target_pos].copy()
     
     if len(pool) < 5:
         return None, "Yetersiz Veri"
     
-    # Scale ve Model
     scaler = StandardScaler()
     scaled_pool = scaler.fit_transform(pool[features])
     
@@ -146,14 +144,12 @@ def calculate_similarity(df, target_player, features):
     knn = NearestNeighbors(n_neighbors=k, metric='euclidean')
     knn.fit(scaled_pool)
     
-    # Hedef Vektör
     target_vector = scaler.transform(target_player[features].to_frame().T)
     distances, indices = knn.kneighbors(target_vector)
     
     recommendations = []
     for i, idx in enumerate(indices[0][1:]):
         neighbor = pool.iloc[idx]
-        
         dist = distances[0][i+1]
         score = max(0, 100 - (dist * 5))
         
@@ -178,7 +174,7 @@ def calculate_similarity(df, target_player, features):
     return pd.DataFrame(recommendations), None
 
 # -----------------------------------------------------------------------------
-# 4. ARAYÜZ (UI) TASARIMI
+# 4. ARAYÜZ (UI)
 # -----------------------------------------------------------------------------
 st.title("🦁 AI FOOTBALL SCOUT")
 st.markdown("Yapay zeka destekli, mevkii hassasiyetli oyuncu öneri sistemi.")
@@ -186,7 +182,7 @@ st.divider()
 
 col_search, col_btn = st.columns([4, 1])
 with col_search:
-    player_name = st.text_input("Futbolcu Adı Girin (Örn: Mbappe, Van Dijk, Ozil)", placeholder="Oyuncu adı yazıp Enter'a basın...")
+    player_name = st.text_input("Futbolcu Adı Girin", placeholder="Örn: Mbappe...")
 with col_btn:
     st.write("") 
     st.write("") 
@@ -200,6 +196,8 @@ if search_clicked or player_name:
         
         if target_player is None:
             st.error(f"❌ '{player_name}' veritabanında bulunamadı.")
+            # HATA AYIKLAMA İÇİN İPUCU:
+            st.info("İpucu: Eğer isimleri bulamıyorsa sayfanın en üstünde doğru sütunu seçtiğinizden emin olun.")
         else:
             if suggestion_msg:
                 st.info(f"⚠️ '{player_name}' bulunamadı. {suggestion_msg} analiz ediliyor.")
@@ -215,7 +213,7 @@ if search_clicked or player_name:
             st.markdown("---")
             st.subheader(f"✅ {target_player['Name']} Yerine Oynayabilecek {target_player['Position']} Alternatifleri")
             
-            rec_df, error = calculate_similarity(df, target_player, feature_cols)
+            rec_df, error = calculate_similarity(df, target_player, available_features)
             
             if error:
                 st.warning(f"⚠️ {target_player['Position']} mevkisinde yeterli veri yok.")
