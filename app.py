@@ -11,7 +11,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 # -----------------------------------------------------------------------------
-# 1. SAYFA VE TEMA AYARLARI (KIRMIZI KONSEPT)
+# 1. SAYFA VE TEMA AYARLARI
 # -----------------------------------------------------------------------------
 st.set_page_config(
     page_title="AI Scout - Kırmızı",
@@ -20,72 +20,41 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Özel CSS ile Kırmızı/Siyah Tema Entegrasyonu
+# Kırmızı/Siyah Tema CSS
 st.markdown("""
     <style>
-    /* Ana Arka Plan */
-    .stApp {
-        background-color: #121212;
-        color: #e0e0e0;
-    }
-    /* Başlıklar */
-    h1, h2, h3 {
-        color: #ff4b4b !important; /* Streamlit Kırmızısı */
-        font-family: 'Helvetica', sans-serif;
-    }
-    /* Buton Tasarımı */
-    .stButton>button {
-        background-color: #d32f2f;
-        color: white;
-        border-radius: 8px;
-        border: none;
-        height: 50px;
-        width: 100%;
-        font-weight: bold;
-        font-size: 18px;
-    }
-    .stButton>button:hover {
-        background-color: #b71c1c;
-        color: white;
-    }
-    /* Kart Görünümü (Metrics) */
-    div[data-testid="stMetric"] {
-        background-color: #1e1e1e;
-        border: 1px solid #333;
-        padding: 15px;
-        border-radius: 10px;
-        border-left: 5px solid #d32f2f; /* Sol taraf kırmızı çizgi */
-    }
-    div[data-testid="stMetricLabel"] {
-        color: #9e9e9e;
-    }
-    div[data-testid="stMetricValue"] {
-        color: #ffffff;
-    }
-    /* Tablo Tasarımı */
-    div[data-testid="stDataFrame"] {
-        background-color: #1e1e1e;
-    }
+    .stApp { background-color: #121212; color: #e0e0e0; }
+    h1, h2, h3 { color: #ff4b4b !important; font-family: 'Helvetica', sans-serif; }
+    .stButton>button { background-color: #d32f2f; color: white; border-radius: 8px; border: none; height: 50px; width: 100%; font-weight: bold; font-size: 18px; }
+    .stButton>button:hover { background-color: #b71c1c; color: white; }
+    div[data-testid="stMetric"] { background-color: #1e1e1e; border: 1px solid #333; padding: 15px; border-radius: 10px; border-left: 5px solid #d32f2f; }
+    div[data-testid="stMetricLabel"] { color: #9e9e9e; }
+    div[data-testid="stMetricValue"] { color: #ffffff; }
+    div[data-testid="stDataFrame"] { background-color: #1e1e1e; }
     </style>
     """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. VERİ YÜKLEME (GOOGLE DRIVE ENTEGRASYONU)
+# 2. VERİ YÜKLEME (GÜNCELLENMİŞ VE SAĞLAMLAŞTIRILMIŞ)
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data():
-    # Google Drive Linkinden ID'yi alıp CSV indirme linkine çeviriyoruz
+    # Google Drive Linki
     file_id = '1MUbla2YNYsd7sq61F8QL4OBnitw8tsEE'
     url = f'https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv'
     
     try:
-        # URL'den okuyoruz
         df = pd.read_csv(url)
+        
+        # --- KRİTİK DÜZELTME: Sütun İsimlerini Temizle ---
+        # " Name " gibi boşluklu sütunları "Name" yapar
+        df.columns = df.columns.str.strip()
+        
     except Exception as e:
-        st.error(f"❌ Veri Google Drive'dan çekilemedi. İnternet bağlantınızı kontrol edin. Hata: {e}")
+        st.error(f"❌ Veri indirilemedi. Hata: {e}")
         return None, None
 
-    # --- Veri Ön İşleme ---
+    # --- Veri Ön İşleme Fonksiyonları ---
     def normalize_name(text):
         if not isinstance(text, str): return ""
         text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
@@ -99,13 +68,20 @@ def load_data():
             return scores.get(parts[0].strip(), 1) + scores.get(parts[1].strip(), 1)
         return 2
 
-    # İsimleri temizle
-    if 'Name' in df.columns:
-        df['Clean_Name'] = df['Name'].apply(normalize_name)
+    # --- 'Name' Sütunu Kontrolü ---
+    if 'Name' not in df.columns:
+        st.error("CSV dosyasında 'Name' sütunu bulunamadı! Lütfen sütun isminin 'Name' olduğundan emin olun.")
+        # Programın çökmemesi için boş döndür
+        return None, None
+    
+    # 'Clean_Name' Oluştur (Hata veren yer burasıydı, artık garanti)
+    df['Clean_Name'] = df['Name'].apply(normalize_name)
     
     # Work Rate skorla
     if 'Work Rate' in df.columns:
         df['Work_Rate_Score'] = df['Work Rate'].apply(work_rate_score)
+    else:
+        df['Work_Rate_Score'] = 2 # Sütun yoksa varsayılan değer ata
     
     # Sayısal özellikler
     features = [
@@ -115,7 +91,7 @@ def load_data():
         'Height(cm.)', 'Weight(lbs.)'
     ]
     
-    # Sütunlar var mı kontrol et, yoksa hata vermesin diye doldur
+    # Sadece CSV'de mevcut olan özellikleri al
     available_features = [f for f in features if f in df.columns]
     
     # Eksik verileri doldur
@@ -127,6 +103,7 @@ def load_data():
 with st.spinner('Veriler Google Drive üzerinden indiriliyor ve işleniyor...'):
     df, feature_cols = load_data()
 
+# Eğer veri yüklenemediyse durdur
 if df is None:
     st.stop()
 
@@ -134,7 +111,6 @@ if df is None:
 # 3. MANTIKSAL FONKSİYONLAR
 # -----------------------------------------------------------------------------
 def get_player_suggestions(df, search_term):
-    """İsim düzeltme ve tahmin mekanizması"""
     clean_term = unicodedata.normalize('NFKD', search_term).encode('ASCII', 'ignore').decode('utf-8').lower().strip()
     
     # Tam Eşleşme
@@ -142,7 +118,7 @@ def get_player_suggestions(df, search_term):
     if not matches.empty:
         return matches.sort_values(by='Overall', ascending=False).iloc[0], None
     
-    # Fuzzy Match (Yazım Hatası)
+    # Fuzzy Match
     all_names = df['Clean_Name'].unique().tolist()
     close_matches = difflib.get_close_matches(clean_term, all_names, n=1, cutoff=0.6)
     
@@ -154,7 +130,6 @@ def get_player_suggestions(df, search_term):
     return None, None
 
 def calculate_similarity(df, target_player, features):
-    """KNN Modeli ile benzerleri bulur (MEVKİ KİLİTLİ)"""
     target_pos = target_player['Position']
     
     # MEVKİ FİLTRESİ
@@ -176,14 +151,12 @@ def calculate_similarity(df, target_player, features):
     distances, indices = knn.kneighbors(target_vector)
     
     recommendations = []
-    # indices[0][1:] -> Kendisi hariç diğerleri
     for i, idx in enumerate(indices[0][1:]):
         neighbor = pool.iloc[idx]
         
         dist = distances[0][i+1]
         score = max(0, 100 - (dist * 5))
         
-        # Yorum Mantığı
         comment = "-"
         if neighbor['Value(£)'] < target_player['Value(£)'] / 2: comment = "💰 Bütçe Dostu"
         elif neighbor['Overall'] > target_player['Overall']: comment = "🏆 Daha Güçlü"
@@ -207,13 +180,10 @@ def calculate_similarity(df, target_player, features):
 # -----------------------------------------------------------------------------
 # 4. ARAYÜZ (UI) TASARIMI
 # -----------------------------------------------------------------------------
-
-# Başlık Bölümü
 st.title("🦁 AI FOOTBALL SCOUT")
 st.markdown("Yapay zeka destekli, mevkii hassasiyetli oyuncu öneri sistemi.")
 st.divider()
 
-# Arama Bölümü
 col_search, col_btn = st.columns([4, 1])
 with col_search:
     player_name = st.text_input("Futbolcu Adı Girin (Örn: Mbappe, Van Dijk, Ozil)", placeholder="Oyuncu adı yazıp Enter'a basın...")
@@ -222,7 +192,6 @@ with col_btn:
     st.write("") 
     search_clicked = st.button("ANALİZ ET")
 
-# --- SONUÇ EKRANI ---
 if search_clicked or player_name:
     if not player_name:
         st.warning("Lütfen bir isim girin.")
@@ -235,7 +204,6 @@ if search_clicked or player_name:
             if suggestion_msg:
                 st.info(f"⚠️ '{player_name}' bulunamadı. {suggestion_msg} analiz ediliyor.")
             
-            # --- HEDEF OYUNCU KARTI ---
             st.subheader(f"🎯 Hedef: {target_player['Name']} ({target_player['Club']})")
             
             col1, col2, col3, col4 = st.columns(4)
@@ -244,7 +212,6 @@ if search_clicked or player_name:
             with col3: st.metric("Yaş", target_player['Age'])
             with col4: st.metric("Piyasa Değeri", f"£{target_player['Value(£)']:,}")
             
-            # --- ANALİZ VE LİSTE ---
             st.markdown("---")
             st.subheader(f"✅ {target_player['Name']} Yerine Oynayabilecek {target_player['Position']} Alternatifleri")
             
