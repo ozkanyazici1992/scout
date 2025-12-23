@@ -17,10 +17,10 @@ st.set_page_config(
     page_title="Turquoise Scout AI",
     page_icon="💎",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="expanded"
 )
 
-# Özel CSS: Siyah Arka Plan, Turkuaz Detaylar
+# Özel CSS
 st.markdown("""
     <style>
     .stApp { background-color: #0E1117; color: #E0E0E0; }
@@ -31,12 +31,12 @@ st.markdown("""
     div[data-testid="stMetric"] { background-color: #161B22; border: 1px solid #30363D; border-top: 3px solid #00E5FF; padding: 10px; border-radius: 5px; }
     div[data-testid="stMetricValue"] { color: #00E5FF !important; }
     div[data-testid="stDataFrame"] { border: 1px solid #30363D; }
-    .stAlert { background-color: #161B22; color: #E0E0E0; border-left: 5px solid #00E5FF; }
+    .stSidebar { background-color: #161B22 !important; border-right: 1px solid #30363D; }
     </style>
     """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. VERİ YÜKLEME VE OTOMATİK DÜZELTME
+# 2. VERİ YÜKLEME VE AKILLI KOLON SEÇİMİ
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data_raw():
@@ -44,10 +44,9 @@ def load_data_raw():
     url = f'https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv'
     try:
         df = pd.read_csv(url)
-        # Sütun isimlerindeki boşlukları temizle
-        df.columns = df.columns.str.strip()
+        df.columns = df.columns.str.strip() # Boşlukları temizle
         return df
-    except Exception as e:
+    except:
         return None
 
 # Veriyi İndir
@@ -58,20 +57,37 @@ if df is None:
     st.error("❌ Veri indirilemedi.")
     st.stop()
 
-# --- OTOMATİK SÜTUN BULUCU (KULLANICIYA SORMAZ) ---
-# "Name" sütunu yoksa, veri setinin yapısına göre otomatik atama yapıyoruz.
-if 'Name' not in df.columns:
-    # 1. İhtimal: Küçük harf 'name' var mı?
-    found = False
-    for col in df.columns:
-        if 'name' in col.lower():
-            df['Name'] = df[col]
-            found = True
-            break
-    
-    # 2. İhtimal: Hala bulamadıysa, genelde futbol verilerinde 3. sütun (Index 2) isimdir.
-    if not found and len(df.columns) > 2:
-        df['Name'] = df.iloc[:, 2] # 3. Sütunu zorla 'Name' yap
+# --- AKILLI KOLON BULUCU ---
+# Hedef: 'Name' sütununu bulmak.
+# Strateji: Önce 'Name' ara, yoksa ilk 'Metin' (Object) sütununu al.
+
+target_col = None
+
+# 1. 'Name' veya 'Ad' içeren sütun var mı?
+for col in df.columns:
+    if 'name' in col.lower() or 'player' in col.lower():
+        target_col = col
+        break
+
+# 2. Bulamazsa, ilk metin (string) sütununu al
+if target_col is None:
+    text_cols = df.select_dtypes(include=['object']).columns
+    if len(text_cols) > 0:
+        target_col = text_cols[0]
+
+# Sütunu 'Name' olarak ayarla
+if target_col:
+    df['Name'] = df[target_col].astype(str)
+else:
+    st.error("❌ Veri setinde isim içeren bir sütun bulunamadı.")
+    st.stop()
+
+# --- SIDEBAR: KONTROL PANELİ ---
+st.sidebar.title("🛠️ Veri Kontrolü")
+st.sidebar.info(f"İsim Sütunu Olarak Algılanan: **{target_col}**")
+st.sidebar.markdown("---")
+st.sidebar.write("Veri setinden rastgele 5 örnek:")
+st.sidebar.write(df['Name'].sample(5).values)
 
 # Veri Ön İşleme
 def normalize_name(text):
@@ -79,15 +95,9 @@ def normalize_name(text):
     text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
     return text.lower().strip()
 
-# 'Name' sütunu artık garanti var kabul ediyoruz
-try:
-    df['Clean_Name'] = df['Name'].apply(normalize_name)
-except:
-    # Çok ters bir durum olursa ilk sütunu al
-    df['Name'] = df.iloc[:, 0].astype(str)
-    df['Clean_Name'] = df['Name'].apply(normalize_name)
+df['Clean_Name'] = df['Name'].apply(normalize_name)
 
-# Work Rate Skorlama
+# Work Rate
 def work_rate_score(wr):
     if not isinstance(wr, str): return 1
     scores = {'Low': 1, 'Medium': 2, 'High': 3}
@@ -101,7 +111,7 @@ if 'Work Rate' in df.columns:
 else:
     df['Work_Rate_Score'] = 2
 
-# Kullanılacak Özellikler
+# Özellikler
 features_list = [
     'Overall', 'Potential', 'Value(£)', 'Wage(£)', 
     'Age', 'International Reputation', 'Skill Moves', 
@@ -109,8 +119,12 @@ features_list = [
     'Height(cm.)', 'Weight(lbs.)'
 ]
 
-# Sadece mevcut olanları al
+# Mevcut olanları doldur
 feature_cols = [f for f in features_list if f in df.columns]
+if not feature_cols:
+    st.error("❌ Analiz için gerekli sayısal sütunlar (Overall, Potential vb.) bulunamadı.")
+    st.stop()
+
 df[feature_cols] = df[feature_cols].fillna(df[feature_cols].median())
 
 # -----------------------------------------------------------------------------
@@ -124,7 +138,8 @@ def get_player(df, name_input):
         return matches.sort_values(by='Overall', ascending=False).iloc[0], None
     
     all_names = df['Clean_Name'].unique().tolist()
-    close = difflib.get_close_matches(clean_input, all_names, n=1, cutoff=0.6)
+    # Eşik değerini düşürdüm (0.6 -> 0.5) daha esnek olsun diye
+    close = difflib.get_close_matches(clean_input, all_names, n=1, cutoff=0.5)
     
     if close:
         found = df[df['Clean_Name'] == close[0]].iloc[0]
@@ -211,6 +226,9 @@ if btn or search_name:
         
         if player is None:
             st.error("Oyuncu bulunamadı.")
+            # Hata ayıklama için kullanıcıya yardım
+            with st.expander("❓ Sistemde kayıtlı isimleri kontrol et"):
+                st.write(df['Name'].head(20))
         else:
             if msg: st.info(msg)
             
