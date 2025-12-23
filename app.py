@@ -7,135 +7,202 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import NearestNeighbors
 import warnings
 
-# Uyarıları kapat
+# Gereksiz uyarıları gizle
 warnings.filterwarnings('ignore')
 
 # -----------------------------------------------------------------------------
-# 1. SAYFA VE TEMA AYARLARI
+# 1. TASARIM VE TEMA (TURKUAZ & SİYAH)
 # -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="AI Scout - Kırmızı",
-    page_icon="⚽",
+    page_title="Turquoise Scout AI",
+    page_icon="💎",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
+# Özel CSS: Siyah Arka Plan, Turkuaz Detaylar
 st.markdown("""
     <style>
-    .stApp { background-color: #121212; color: #e0e0e0; }
-    h1, h2, h3 { color: #ff4b4b !important; font-family: 'Helvetica', sans-serif; }
-    .stButton>button { background-color: #d32f2f; color: white; border-radius: 8px; border: none; height: 50px; width: 100%; font-weight: bold; font-size: 18px; }
-    .stButton>button:hover { background-color: #b71c1c; color: white; }
-    div[data-testid="stMetric"] { background-color: #1e1e1e; border: 1px solid #333; padding: 15px; border-radius: 10px; border-left: 5px solid #d32f2f; }
-    div[data-testid="stMetricLabel"] { color: #9e9e9e; }
-    div[data-testid="stMetricValue"] { color: #ffffff; }
-    div[data-testid="stDataFrame"] { background-color: #1e1e1e; }
+    /* Ana Arka Plan */
+    .stApp {
+        background-color: #0E1117;
+        color: #E0E0E0;
+    }
+    
+    /* Başlıklar */
+    h1, h2, h3 {
+        color: #00E5FF !important; /* Neon Turkuaz */
+        font-family: 'Courier New', sans-serif;
+        text-shadow: 0px 0px 10px rgba(0, 229, 255, 0.3);
+    }
+    
+    /* Metin Girdisi */
+    .stTextInput>div>div>input {
+        background-color: #161B22;
+        color: #00E5FF;
+        border: 1px solid #00E5FF;
+    }
+    
+    /* Buton */
+    .stButton>button {
+        background-color: #008B8B; /* Koyu Turkuaz */
+        color: white;
+        border: none;
+        border-radius: 5px;
+        font-weight: bold;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #00E5FF; /* Parlak Turkuaz */
+        color: #000000;
+        box-shadow: 0px 0px 15px #00E5FF;
+    }
+    
+    /* Bilgi Kartları (Metrics) */
+    div[data-testid="stMetric"] {
+        background-color: #161B22;
+        border: 1px solid #30363D;
+        border-top: 3px solid #00E5FF; /* Üst çizgi turkuaz */
+        padding: 10px;
+        border-radius: 5px;
+    }
+    div[data-testid="stMetricValue"] {
+        color: #00E5FF !important;
+    }
+    
+    /* Tablo */
+    div[data-testid="stDataFrame"] {
+        border: 1px solid #30363D;
+    }
+    
+    /* Uyarı Kutuları */
+    .stAlert {
+        background-color: #161B22;
+        color: #E0E0E0;
+        border-left: 5px solid #00E5FF;
+    }
     </style>
     """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. VERİ YÜKLEME VE SÜTUN ONARIMI
+# 2. VERİ YÜKLEME VE HAZIRLIK
 # -----------------------------------------------------------------------------
 @st.cache_data
-def load_data_raw():
-    # Google Drive'dan ham veriyi çek
+def load_data():
     file_id = '1MUbla2YNYsd7sq61F8QL4OBnitw8tsEE'
     url = f'https://docs.google.com/spreadsheets/d/{file_id}/export?format=csv'
     
     try:
         df = pd.read_csv(url)
-        # Sütun isimlerindeki gereksiz boşlukları temizle (Örn: " Name " -> "Name")
+        # Sütun isimlerindeki boşlukları temizle (Name hatasını önler)
         df.columns = df.columns.str.strip()
-        return df
-    except Exception as e:
-        return None
+    except:
+        return None, None
 
-# Veriyi yükle
-with st.spinner('Veriler indiriliyor...'):
-    df = load_data_raw()
+    # İsim Temizleme
+    def normalize_name(text):
+        if not isinstance(text, str): return ""
+        text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
+        return text.lower().strip()
+
+    # Eğer 'Name' sütunu yoksa kullanıcıya seçtirmek yerine otomatik bulmaya çalış
+    if 'Name' not in df.columns:
+        # İçinde 'name' veya 'ad' geçen ilk sütunu bul
+        possible_cols = [c for c in df.columns if 'name' in c.lower() or 'ad' in c.lower()]
+        if possible_cols:
+            df['Name'] = df[possible_cols[0]]
+        else:
+            return None, "İsim sütunu bulunamadı"
+
+    df['Clean_Name'] = df['Name'].apply(normalize_name)
+    
+    # Work Rate Dönüştürme
+    def work_rate_score(wr):
+        if not isinstance(wr, str): return 1
+        scores = {'Low': 1, 'Medium': 2, 'High': 3}
+        parts = wr.split('/')
+        if len(parts) == 2:
+            return scores.get(parts[0].strip(), 1) + scores.get(parts[1].strip(), 1)
+        return 2
+
+    if 'Work Rate' in df.columns:
+        df['Work_Rate_Score'] = df['Work Rate'].apply(work_rate_score)
+    else:
+        df['Work_Rate_Score'] = 2
+        
+    features = [
+        'Overall', 'Potential', 'Value(£)', 'Wage(£)', 
+        'Age', 'International Reputation', 'Skill Moves', 
+        'Weak Foot', 'Special', 'Work_Rate_Score',
+        'Height(cm.)', 'Weight(lbs.)'
+    ]
+    
+    available_features = [f for f in features if f in df.columns]
+    df[available_features] = df[available_features].fillna(df[available_features].median())
+    
+    return df, available_features
+
+# Veriyi Yükle
+with st.spinner('Veri tabanı yükleniyor...'):
+    df, feature_cols = load_data()
 
 if df is None:
-    st.error("❌ Veri indirilemedi. İnternet bağlantınızı kontrol edin.")
+    st.error("Veri yüklenemedi. Sütun isimlerini kontrol edin.")
     st.stop()
 
-# --- SÜTUN EŞLEŞTİRME (HATA ÇÖZÜMÜ BURADA) ---
-# Eğer 'Name' sütunu yoksa kullanıcıya seçtiriyoruz
-if 'Name' not in df.columns:
-    st.warning("⚠️ Otomatik sütun eşleşmesi yapılamadı. Lütfen aşağıdaki listeden **Futbolcu İsimlerinin** olduğu sütunu seçin.")
-    
-    # Kullanıcıya tüm sütunları göster
-    selected_name_col = st.selectbox("İsim Sütunu:", df.columns)
-    
-    # Seçilen sütunu 'Name' olarak kopyala
-    if selected_name_col:
-        df['Name'] = df[selected_name_col]
-        st.success(f"✅ '{selected_name_col}' sütunu İsim sütunu olarak ayarlandı.")
-    else:
-        st.stop()
-
-# --- VERİ ÖN İŞLEME DEVAMI ---
-def normalize_name(text):
-    if not isinstance(text, str): return ""
-    text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
-    return text.lower().strip()
-
-def work_rate_score(wr):
-    if not isinstance(wr, str): return 1
-    scores = {'Low': 1, 'Medium': 2, 'High': 3}
-    parts = wr.split('/')
-    if len(parts) == 2:
-        return scores.get(parts[0].strip(), 1) + scores.get(parts[1].strip(), 1)
-    return 2
-
-# Artık 'Name' sütunumuzun olduğundan eminiz
-df['Clean_Name'] = df['Name'].apply(normalize_name)
-
-if 'Work Rate' in df.columns:
-    df['Work_Rate_Score'] = df['Work Rate'].apply(work_rate_score)
-else:
-    df['Work_Rate_Score'] = 2
-
-# Sayısal özellikler
-features_list = [
-    'Overall', 'Potential', 'Value(£)', 'Wage(£)', 
-    'Age', 'International Reputation', 'Skill Moves', 
-    'Weak Foot', 'Special', 'Work_Rate_Score',
-    'Height(cm.)', 'Weight(lbs.)'
-]
-
-# Mevcut olan özellikleri seç
-available_features = [f for f in features_list if f in df.columns]
-
-# Eksikleri doldur
-df[available_features] = df[available_features].fillna(df[available_features].median())
-
-
 # -----------------------------------------------------------------------------
-# 3. MANTIKSAL FONKSİYONLAR
+# 3. ANALİZ MOTORU
 # -----------------------------------------------------------------------------
-def get_player_suggestions(df, search_term):
-    clean_term = unicodedata.normalize('NFKD', search_term).encode('ASCII', 'ignore').decode('utf-8').lower().strip()
+def get_player(df, name_input):
+    clean_input = unicodedata.normalize('NFKD', name_input).encode('ASCII', 'ignore').decode('utf-8').lower().strip()
     
-    matches = df[df['Clean_Name'].str.contains(clean_term, na=False)]
+    # Tam Eşleşme
+    matches = df[df['Clean_Name'].str.contains(clean_input, na=False)]
     if not matches.empty:
         return matches.sort_values(by='Overall', ascending=False).iloc[0], None
     
+    # Benzerlik (Typo) Kontrolü
     all_names = df['Clean_Name'].unique().tolist()
-    close_matches = difflib.get_close_matches(clean_term, all_names, n=1, cutoff=0.6)
+    close = difflib.get_close_matches(clean_input, all_names, n=1, cutoff=0.6)
     
-    if close_matches:
-        found_name = close_matches[0]
-        suggestion = df[df['Clean_Name'] == found_name].iloc[0]
-        return suggestion, f"Bunu mu demek istediniz: **{suggestion['Name']}**?"
+    if close:
+        found = df[df['Clean_Name'] == close[0]].iloc[0]
+        return found, f"Aradığınız isim '{found['Name']}' olabilir mi?"
     
     return None, None
 
-def calculate_similarity(df, target_player, features):
-    target_pos = target_player['Position']
+def get_advice(player):
+    """Oyuncu hakkında metin tabanlı tavsiyeler üretir"""
+    advice = []
+    
+    # Fırsat Analizi
+    if player['Value(£)'] > player['Release Clause(£)'] and player['Release Clause(£)'] > 0:
+        kar = player['Value(£)'] - player['Release Clause(£)']
+        advice.append(f"🔥 **KELEPİR FIRSAT:** Serbest kalma bedeli, piyasa değerinden £{kar:,} daha düşük! Hemen alınmalı.")
+    
+    # Gelişim Analizi
+    diff = player['Potential'] - player['Overall']
+    if diff >= 5:
+        advice.append(f"📈 **YATIRIMLIK:** Oyuncu henüz zirve yapmadı. +{diff} puan daha gelişebilir.")
+    elif player['Age'] <= 21 and player['Overall'] >= 80:
+        advice.append("💎 **WONDERKID:** Nadir bulunan genç yetenek. Takımın geleceği olur.")
+    elif player['Age'] > 32:
+        advice.append("⚠️ **KISA VADELİ:** Oyuncu kariyerinin sonlarında. Maaş bütçesini zorlayabilir.")
+        
+    # Sözleşme
+    if player['Contract Valid Until'] <= 2024:
+        advice.append(f"⏳ **SÖZLEŞME:** Sözleşmesi yakında bitiyor ({int(player['Contract Valid Until'])}). Ucuza kapatılabilir.")
+        
+    if not advice:
+        advice.append("✅ **STABİL:** Standart bir profil. Piyasa değerinde transfer edilebilir.")
+        
+    return advice
+
+def find_similar(df, target, features):
+    target_pos = target['Position']
     pool = df[df['Position'] == target_pos].copy()
     
-    if len(pool) < 5:
-        return None, "Yetersiz Veri"
+    if len(pool) < 5: return None
     
     scaler = StandardScaler()
     scaled_pool = scaler.fit_transform(pool[features])
@@ -144,92 +211,94 @@ def calculate_similarity(df, target_player, features):
     knn = NearestNeighbors(n_neighbors=k, metric='euclidean')
     knn.fit(scaled_pool)
     
-    target_vector = scaler.transform(target_player[features].to_frame().T)
-    distances, indices = knn.kneighbors(target_vector)
+    target_vec = scaler.transform(target[features].to_frame().T)
+    distances, indices = knn.kneighbors(target_vec)
     
-    recommendations = []
+    results = []
     for i, idx in enumerate(indices[0][1:]):
-        neighbor = pool.iloc[idx]
-        dist = distances[0][i+1]
-        score = max(0, 100 - (dist * 5))
+        n = pool.iloc[idx]
+        score = max(0, 100 - (distances[0][i+1] * 5))
         
-        comment = "-"
-        if neighbor['Value(£)'] < target_player['Value(£)'] / 2: comment = "💰 Bütçe Dostu"
-        elif neighbor['Overall'] > target_player['Overall']: comment = "🏆 Daha Güçlü"
-        elif neighbor['Age'] < target_player['Age'] - 3: comment = "👶 Genç Yetenek"
-        elif neighbor['Potential'] > target_player['Potential']: comment = "🚀 Yüksek Potansiyel"
-        elif abs(neighbor['Overall'] - target_player['Overall']) < 2: comment = "⚖️ Dengi"
-
-        recommendations.append({
-            'Oyuncu': neighbor['Name'],
-            'Mevki': neighbor['Position'],
-            'Takım': neighbor['Club'],
-            'Yaş': neighbor['Age'],
-            'Güç': neighbor['Overall'],
-            'Değer (£)': f"£{neighbor['Value(£)']:,}",
-            'Benzerlik': f"%{score:.1f}",
-            'Not': comment
+        # Kısa Yorum
+        tag = "Benzer"
+        if n['Value(£)'] < target['Value(£)']/2: tag = "📉 Daha Ucuz"
+        elif n['Overall'] > target['Overall']: tag = "🏆 Daha İyi"
+        elif n['Potential'] > target['Potential']: tag = "🚀 Potansiyelli"
+        elif n['Age'] < target['Age']-3: tag = "👶 Daha Genç"
+        
+        results.append({
+            "Oyuncu": n['Name'],
+            "Takım": n['Club'],
+            "Yaş": n['Age'],
+            "Güç": n['Overall'],
+            "Değer": f"£{n['Value(£)']:,}",
+            "Uyumluluk": f"%{score:.1f}",
+            "Durum": tag
         })
         
-    return pd.DataFrame(recommendations), None
+    return pd.DataFrame(results)
 
 # -----------------------------------------------------------------------------
-# 4. ARAYÜZ (UI)
+# 4. ARAYÜZ
 # -----------------------------------------------------------------------------
-st.title("🦁 AI FOOTBALL SCOUT")
-st.markdown("Yapay zeka destekli, mevkii hassasiyetli oyuncu öneri sistemi.")
+st.title("TURQUOISE SCOUT 💎")
+st.markdown("Futbolcu analizi ve yapay zeka destekli alternatif öneri sistemi.")
 st.divider()
 
-col_search, col_btn = st.columns([4, 1])
-with col_search:
-    player_name = st.text_input("Futbolcu Adı Girin", placeholder="Örn: Mbappe...")
-with col_btn:
-    st.write("") 
-    st.write("") 
-    search_clicked = st.button("ANALİZ ET")
+# Arama Çubuğu
+col1, col2 = st.columns([3, 1])
+with col1:
+    search_name = st.text_input("Oyuncu Adı Girin:", placeholder="Örn: Mbappe, Messi, Arda Guler...")
+with col2:
+    st.write("")
+    st.write("")
+    btn = st.button("ANALİZ ET 🔍")
 
-if search_clicked or player_name:
-    if not player_name:
-        st.warning("Lütfen bir isim girin.")
+if btn or search_name:
+    if not search_name:
+        st.warning("Lütfen bir isim yazın.")
     else:
-        target_player, suggestion_msg = get_player_suggestions(df, player_name)
+        player, msg = get_player(df, search_name)
         
-        if target_player is None:
-            st.error(f"❌ '{player_name}' veritabanında bulunamadı.")
-            # HATA AYIKLAMA İÇİN İPUCU:
-            st.info("İpucu: Eğer isimleri bulamıyorsa sayfanın en üstünde doğru sütunu seçtiğinizden emin olun.")
+        if player is None:
+            st.error("Oyuncu bulunamadı.")
         else:
-            if suggestion_msg:
-                st.info(f"⚠️ '{player_name}' bulunamadı. {suggestion_msg} analiz ediliyor.")
+            if msg: st.info(msg)
             
-            st.subheader(f"🎯 Hedef: {target_player['Name']} ({target_player['Club']})")
+            # --- PROFİL KARTI ---
+            st.subheader(f"{player['Name'].upper()} ({player['Club']})")
             
-            col1, col2, col3, col4 = st.columns(4)
-            with col1: st.metric("Mevki", target_player['Position'])
-            with col2: st.metric("Güç (Overall)", target_player['Overall'])
-            with col3: st.metric("Yaş", target_player['Age'])
-            with col4: st.metric("Piyasa Değeri", f"£{target_player['Value(£)']:,}")
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Mevki", player['Position'])
+            m2.metric("Güç", player['Overall'], f"Potansiyel: {player['Potential']}")
+            m3.metric("Yaş", player['Age'])
+            m4.metric("Değer", f"£{player['Value(£)']:,}")
             
+            # --- TAVSİYELER ---
+            st.markdown("### 📝 AI ANALİST TAVSİYESİ")
+            advices = get_advice(player)
+            for adv in advices:
+                st.markdown(f"> {adv}")
+            
+            # --- BENZER OYUNCULAR ---
             st.markdown("---")
-            st.subheader(f"✅ {target_player['Name']} Yerine Oynayabilecek {target_player['Position']} Alternatifleri")
+            st.markdown(f"### 🔄 {player['Name']} YERİNE ALINABİLECEK EN İYİ 10 {player['Position']}")
             
-            rec_df, error = calculate_similarity(df, target_player, available_features)
+            sim_df = find_similar(df, player, feature_cols)
             
-            if error:
-                st.warning(f"⚠️ {target_player['Position']} mevkisinde yeterli veri yok.")
-            else:
+            if sim_df is not None:
                 st.dataframe(
-                    rec_df,
+                    sim_df,
                     use_container_width=True,
                     hide_index=True,
                     column_config={
-                        "Benzerlik": st.column_config.ProgressColumn(
-                            "Benzerlik Skoru",
+                        "Uyumluluk": st.column_config.ProgressColumn(
+                            "Benzerlik Oranı",
                             format="%s",
                             min_value=0,
                             max_value=100,
                         ),
-                        "Oyuncu": st.column_config.TextColumn("Oyuncu Adı", width="medium"),
-                        "Not": st.column_config.TextColumn("Yapay Zeka Yorumu", width="small"),
                     }
                 )
+            else:
+                st.warning("Yeterli veri yok.")
