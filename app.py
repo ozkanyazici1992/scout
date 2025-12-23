@@ -36,7 +36,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. VERİ YÜKLEME VE KOLON SEÇİMİ (HATA DÜZELTİCİ)
+# 2. VERİ YÜKLEME VE OTOMATİK DÜZELTME
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data_raw():
@@ -51,21 +51,27 @@ def load_data_raw():
         return None
 
 # Veriyi İndir
-with st.spinner('Veri tabanı indiriliyor...'):
+with st.spinner('Sistem başlatılıyor...'):
     df = load_data_raw()
 
 if df is None:
-    st.error("❌ Veri indirilemedi. İnternet bağlantısını kontrol edin.")
+    st.error("❌ Veri indirilemedi.")
     st.stop()
 
-# --- KRİTİK BÖLÜM: EĞER 'NAME' SÜTUNU YOKSA KULLANICIYA SEÇTİR ---
+# --- OTOMATİK SÜTUN BULUCU (KULLANICIYA SORMAZ) ---
+# "Name" sütunu yoksa, veri setinin yapısına göre otomatik atama yapıyoruz.
 if 'Name' not in df.columns:
-    st.warning("⚠️ Otomatik sütun eşleşmesi yapılamadı. Lütfen aşağıdaki listeden **Futbolcu İsimlerinin** olduğu sütunu seçin.")
-    # Kullanıcıya tüm sütunları göster
-    col_name = st.selectbox("İsim Sütunu Hangisi?", df.columns)
-    # Seçilen sütunu 'Name' olarak kopyala
-    df['Name'] = df[col_name]
-    st.success("✅ Sütun seçildi. Analiz başlıyor...")
+    # 1. İhtimal: Küçük harf 'name' var mı?
+    found = False
+    for col in df.columns:
+        if 'name' in col.lower():
+            df['Name'] = df[col]
+            found = True
+            break
+    
+    # 2. İhtimal: Hala bulamadıysa, genelde futbol verilerinde 3. sütun (Index 2) isimdir.
+    if not found and len(df.columns) > 2:
+        df['Name'] = df.iloc[:, 2] # 3. Sütunu zorla 'Name' yap
 
 # Veri Ön İşleme
 def normalize_name(text):
@@ -73,7 +79,13 @@ def normalize_name(text):
     text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
     return text.lower().strip()
 
-df['Clean_Name'] = df['Name'].apply(normalize_name)
+# 'Name' sütunu artık garanti var kabul ediyoruz
+try:
+    df['Clean_Name'] = df['Name'].apply(normalize_name)
+except:
+    # Çok ters bir durum olursa ilk sütunu al
+    df['Name'] = df.iloc[:, 0].astype(str)
+    df['Clean_Name'] = df['Name'].apply(normalize_name)
 
 # Work Rate Skorlama
 def work_rate_score(wr):
@@ -116,7 +128,7 @@ def get_player(df, name_input):
     
     if close:
         found = df[df['Clean_Name'] == close[0]].iloc[0]
-        return found, f"Aradığınız isim '{found['Name']}' olabilir mi?"
+        return found, f"Bunu mu demek istediniz: '{found['Name']}'?"
     
     return None, None
 
@@ -199,9 +211,6 @@ if btn or search_name:
         
         if player is None:
             st.error("Oyuncu bulunamadı.")
-            # Debug için sütunları göster
-            with st.expander("Sütun İsimlerini Göster (Debug)"):
-                st.write(df.columns.tolist())
         else:
             if msg: st.info(msg)
             
