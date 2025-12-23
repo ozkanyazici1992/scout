@@ -36,7 +36,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # -----------------------------------------------------------------------------
-# 2. VERİ YÜKLEME VE AKILLI KOLON SEÇİMİ
+# 2. VERİ YÜKLEME VE KOLON SEÇİMİ
 # -----------------------------------------------------------------------------
 @st.cache_data
 def load_data_raw():
@@ -57,39 +57,44 @@ if df is None:
     st.error("❌ Veri indirilemedi.")
     st.stop()
 
-# --- AKILLI KOLON BULUCU ---
-# Hedef: 'Name' sütununu bulmak.
-# Strateji: Önce 'Name' ara, yoksa ilk 'Metin' (Object) sütununu al.
+# --- DÜZELTİLEN KISIM: ID SORUNUNU ÇÖZEN AKILLI SEÇİCİ ---
+# Hedef: İçinde sayı OLMAYAN ve 'Name' kelimesine benzeyen sütunu bulmak.
 
-target_col = None
+actual_name_col = None
 
-# 1. 'Name' veya 'Ad' içeren sütun var mı?
-for col in df.columns:
-    if 'name' in col.lower() or 'player' in col.lower():
-        target_col = col
-        break
+# 1. Adım: Sütun isimlerinde 'Name' veya 'Player' arayın
+possible_cols = [col for col in df.columns if 'name' in col.lower() or 'player' in col.lower()]
 
-# 2. Bulamazsa, ilk metin (string) sütununu al
-if target_col is None:
-    text_cols = df.select_dtypes(include=['object']).columns
-    if len(text_cols) > 0:
-        target_col = text_cols[0]
+# 2. Adım: Bu sütunların içeriğine bakın. Eğer içeriği sayıysa (0,1,2..) onu atlayın.
+for col in possible_cols:
+    try:
+        # İlk dolu satırdaki değere bak
+        first_val = df[col].dropna().iloc[0]
+        # Eğer sayısal DEĞİLSE (isdigit False ise), bu gerçek isim sütunudur
+        if not str(first_val).isdigit(): 
+            actual_name_col = col
+            break
+    except:
+        continue
 
-# Sütunu 'Name' olarak ayarla
-if target_col:
-    df['Name'] = df[target_col].astype(str)
-else:
-    st.error("❌ Veri setinde isim içeren bir sütun bulunamadı.")
-    st.stop()
+# 3. Adım: Eğer hala bulamadıysa, 2. sütunu (genelde isim oradadır) zorla seç
+if actual_name_col is None:
+    # df.columns[1] -> 0. sütun ID ise, 1. sütun İsimdir.
+    if len(df.columns) > 1:
+        actual_name_col = df.columns[1]
+    else:
+        actual_name_col = df.columns[0]
 
-# --- SIDEBAR: KONTROL PANELİ ---
+# Artık eminiz, bu sütunu 'Name' olarak kopyala
+df['Name'] = df[actual_name_col].astype(str)
+
+# --- SIDEBAR: KONTROL ---
 st.sidebar.title("🛠️ Veri Kontrolü")
-st.sidebar.info(f"İsim Sütunu Olarak Algılanan: **{target_col}**")
-st.sidebar.markdown("---")
-st.sidebar.write("Veri setinden rastgele 5 örnek:")
-st.sidebar.write(df['Name'].sample(5).values)
+st.sidebar.success(f"İsim Sütunu: **{actual_name_col}**")
+st.sidebar.write("Okunan İsimler (İlk 5):")
+st.sidebar.write(df['Name'].head(5))
 
-# Veri Ön İşleme
+# Veri Ön İşleme (Geri kalanı aynı)
 def normalize_name(text):
     if not isinstance(text, str): return ""
     text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
@@ -97,7 +102,6 @@ def normalize_name(text):
 
 df['Clean_Name'] = df['Name'].apply(normalize_name)
 
-# Work Rate
 def work_rate_score(wr):
     if not isinstance(wr, str): return 1
     scores = {'Low': 1, 'Medium': 2, 'High': 3}
@@ -111,7 +115,6 @@ if 'Work Rate' in df.columns:
 else:
     df['Work_Rate_Score'] = 2
 
-# Özellikler
 features_list = [
     'Overall', 'Potential', 'Value(£)', 'Wage(£)', 
     'Age', 'International Reputation', 'Skill Moves', 
@@ -119,12 +122,7 @@ features_list = [
     'Height(cm.)', 'Weight(lbs.)'
 ]
 
-# Mevcut olanları doldur
 feature_cols = [f for f in features_list if f in df.columns]
-if not feature_cols:
-    st.error("❌ Analiz için gerekli sayısal sütunlar (Overall, Potential vb.) bulunamadı.")
-    st.stop()
-
 df[feature_cols] = df[feature_cols].fillna(df[feature_cols].median())
 
 # -----------------------------------------------------------------------------
@@ -138,7 +136,6 @@ def get_player(df, name_input):
         return matches.sort_values(by='Overall', ascending=False).iloc[0], None
     
     all_names = df['Clean_Name'].unique().tolist()
-    # Eşik değerini düşürdüm (0.6 -> 0.5) daha esnek olsun diye
     close = difflib.get_close_matches(clean_input, all_names, n=1, cutoff=0.5)
     
     if close:
@@ -226,9 +223,7 @@ if btn or search_name:
         
         if player is None:
             st.error("Oyuncu bulunamadı.")
-            # Hata ayıklama için kullanıcıya yardım
-            with st.expander("❓ Sistemde kayıtlı isimleri kontrol et"):
-                st.write(df['Name'].head(20))
+            # Yan menüde ne okuduğunu gösteriyoruz ki emin olalım
         else:
             if msg: st.info(msg)
             
