@@ -115,9 +115,9 @@ def load_data():
             # Para birimi temizliği
             for col in ['Value', 'Wage']:
                 if df[col].dtype == 'object':
-                    df[col] = (df[col].astype(str).str.replace('€', '').str.replace('£', '')
-                               .str.replace('K', '000').str.replace('M', '000000')
-                               .str.replace('.', '').str.extract('(\d+)')[0].astype(float))
+                    df[col] = (df[col].astype(str).str.replace('€', '', regex=False).str.replace('£', '', regex=False)
+                               .str.replace('K', '000', regex=False).str.replace('M', '000000', regex=False)
+                               .str.replace('.', '', regex=False).str.extract(r'(\d+)')[0].astype(float))
             
             num_cols = ['Overall', 'Potential', 'Age', 'Value', 'Wage', 'Finishing', 'Heading', 'Speed']
             for col in num_cols:
