@@ -13,7 +13,7 @@ warnings.filterwarnings('ignore')
 
 # Sayfa ayarları
 st.set_page_config(
-    page_title="Turquoise Scout AI",
+    page_title="ProScout AI",
     page_icon="⚽",
     layout="wide"
 )
@@ -70,11 +70,6 @@ def load_data():
             csv_content = io.StringIO(response.content.decode('utf-8'))
             df = pd.read_csv(csv_content)
             
-            # DEBUG: İlk satırları kontrol et
-            st.write(f"📊 Toplam Oyuncu: {len(df)}")
-            st.write(f"📋 Sütunlar: {df.columns.tolist()}")
-            st.write(f"👤 İlk 3 Oyuncu: {df.head(3)['name'].tolist() if 'name' in df.columns else 'Sütun bulunamadı'}")
-            
             df.columns = df.columns.str.strip().str.lower()
             
             col_map = {
@@ -108,29 +103,24 @@ def load_data():
                     df[col] = 0 if col not in ['Name', 'Club', 'Position', 'Preferred Foot'] else 'Bilinmiyor'
             
             df['Name'] = df['Name'].astype(str)
-            
-            # İsim sütunu otomatik düzeltme
-            if df['Name'].iloc[0].replace('.', '').isdigit():
-                obj_cols = df.select_dtypes(include=['object']).columns
-                for c in obj_cols:
-                    if c != 'Name' and not str(df[c].iloc[0]).replace('.', '').isdigit():
-                        if len(str(df[c].iloc[0])) > 2:
-                            df['Name'] = df[c]
-                            st.info(f"✅ İsim sütunu '{c}' olarak düzeltildi")
-                            break
-            
             df['Clean_Name'] = df['Name'].apply(normalize_text)
             
-            # DEBUG: İsim örnekleri
-            st.write(f"🔍 Temizlenmiş isim örnekleri: {df['Clean_Name'].head(5).tolist()}")
-            
             for col in ['Value', 'Wage']:
-                if col in df.columns and df[col].dtype == 'object':
-                    df[col] = df[col].astype(str).str.replace('€', '', regex=False).str.replace('£', '', regex=False)
+                col_options = [f'{col}(£)', f'{col}(€)', col.lower(), f'{col.lower()}(£)']
+                found_col = None
+                for opt in col_options:
+                    if opt in df.columns:
+                        found_col = opt
+                        break
+                
+                if found_col and df[found_col].dtype == 'object':
+                    df[col] = df[found_col].astype(str).str.replace('€', '', regex=False).str.replace('£', '', regex=False)
                     df[col] = df[col].str.replace('K', '000', regex=False).str.replace('M', '000000', regex=False)
                     df[col] = df[col].str.replace('.', '', regex=False)
                     extracted = df[col].str.extract(r'(\d+)', expand=False)
                     df[col] = pd.to_numeric(extracted, errors='coerce').fillna(0)
+                elif col not in df.columns:
+                    df[col] = 0
             
             num_cols = ['Overall', 'Potential', 'Age', 'Value', 'Wage', 'Finishing', 'Heading', 'Speed']
             for col in num_cols:
@@ -193,8 +183,8 @@ def analyze_player(df, player_name, features):
     return target, recommendations
 
 # Ana sayfa
-st.title("⚽ TURQUOISE SCOUT AI")
-st.markdown("### Futbolcu Analiz ve Öneri Sistemi")
+st.title("⚽ PROSCOUT AI")
+st.markdown("### Profesyonel Futbolcu Analiz Sistemi")
 
 df, features = load_data()
 
@@ -243,6 +233,6 @@ else:
 
 st.markdown("---")
 st.markdown(
-    "<div style='text-align: center; color: white;'>💙 Turquoise Scout AI | Powered by Streamlit</div>",
+    "<div style='text-align: center; color: white;'>⚽ ProScout AI | Powered by AI</div>",
     unsafe_allow_html=True
 )
