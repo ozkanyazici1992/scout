@@ -105,6 +105,11 @@ def load_data():
             df['Name'] = df['Name'].astype(str)
             df['Clean_Name'] = df['Name'].apply(normalize_text)
             
+            # KONTROL: Clean_Name doğru mu?
+            sample_names = df[['Name', 'Clean_Name']].head(10)
+            st.sidebar.write("📝 İsim Örnekleri:")
+            st.sidebar.dataframe(sample_names, width='stretch', hide_index=True)
+            
             for col in ['Value', 'Wage']:
                 col_options = [f'{col}(£)', f'{col}(€)', col.lower(), f'{col.lower()}(£)']
                 found_col = None
@@ -145,6 +150,13 @@ def analyze_player(df, player_name, features):
     # DEBUG
     st.write(f"🔍 Aranan (normalize): '{clean_input}'")
     st.write(f"📊 Toplam kayıt: {len(df)}")
+    
+    # Test: Icardi'yi manuel ara
+    if 'icardi' in clean_input:
+        test = df[df['Clean_Name'].str.contains('icardi', na=False, case=False)]
+        st.write(f"🧪 Manuel 'icardi' testi: {len(test)} sonuç")
+        if not test.empty:
+            st.write(f"Bulunan: {test['Name'].head(3).tolist()}")
     
     # Önce tam eşleşme
     matches = df[df['Clean_Name'].str.contains(clean_input, na=False, regex=False)]
