@@ -22,17 +22,17 @@ st.set_page_config(
 warnings.filterwarnings('ignore')
 
 # -----------------------------------------------------------------------------
-# 2. FONKSİYONLAR
+# 2. TEMİZLİK VE YÜKLEME FONKSİYONLARI
 # -----------------------------------------------------------------------------
 
 def normalize_text(text):
+    """Metni arama için standartlaştırır (küçük harf, türkçe karakter temizliği vb.)"""
     if pd.isna(text) or text == "": return ""
     text = str(text)
     text = text.replace('İ', 'i').replace('I', 'i').replace('ı', 'i')
     text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
     return text.lower().strip()
 
-# Streamlit Cache: Veriyi sadece bir kez indirir ve hafızada tutar
 @st.cache_data(show_spinner=True)
 def load_data_robust():
     file_id = '1nl2hcZP6GltTtjPFzjb8KuOmzRqDLjf6'
@@ -84,6 +84,7 @@ def load_data_robust():
 
         # İsim Sütunu Temizliği
         df['Name'] = df['Name'].astype(str)
+        # ID düzeltmeleri...
         if df['Name'].iloc[0].replace('.', '').isdigit():
             obj_cols = df.select_dtypes(include=['object']).columns
             for c in obj_cols:
@@ -91,6 +92,7 @@ def load_data_robust():
                     df['Name'] = df[c]
                     break
 
+        # Arama için temizlenmiş isim sütunu oluştur
         df['Clean_Name'] = df['Name'].apply(normalize_text)
 
         # Para Birimi Temizliği
@@ -130,65 +132,94 @@ def yazili_analiz_uret(p):
     return " ".join(analizler)
 
 # -----------------------------------------------------------------------------
-# 3. ANA UYGULAMA AKIŞI
+# 3. AKILLI ARAMA MANTIĞI
 # -----------------------------------------------------------------------------
+def find_smart_match(df, user_input):
+    """
+    Kullanıcının girdiği metni önce içinde arar, bulamazsa en yakın benzerini bulur.
+    Örn: 'mbape' -> 'Kylian Mbappe'
+    """
+    clean_input = normalize_text(user_input)
+    
+    # 1. Aşama: İçinde geçiyor mu? (Substring search)
+    # Örn: "messi" yazarsa "Lionel Messi"yi bulsun.
+    matches = df[df['Clean_Name'].str.contains(clean_input, na=False)]
+    
+    if not matches.empty:
+        # Birden fazla "Messi" varsa en yüksek Overall'a sahip olanı döndür
+        return matches.sort_values(by='Overall', ascending=False).iloc[0], "Tam Eşleşme"
+    
+    # 2. Aşama: Yazım hatası düzeltme (Fuzzy Matching)
+    # Örn: "mbape" -> "Kylian Mbappe"
+    all_names = df['Clean_Name'].unique().tolist()
+    # cutoff=0.5 -> %50 benzerlik yeterli
+    close_matches = difflib.get_close_matches(clean_input, all_names, n=1, cutoff=0.5)
+    
+    if close_matches:
+        found_name_clean = close_matches[0]
+        # Temiz isimden orijinal kaydı bul
+        target_row = df[df['Clean_Name'] == found_name_clean].sort_values(by='Overall', ascending=False).iloc[0]
+        return target_row, "Tahmin"
+        
+    return None, None
 
+# -----------------------------------------------------------------------------
+# 4. ANA UYGULAMA
+# -----------------------------------------------------------------------------
 def main():
-    # Başlık
     st.title("💎 Turquoise Scout AI")
-    st.markdown("**Veri Odaklı Futbolcu Analiz ve Benzer Oyuncu Bulma Aracı**")
+    st.markdown("**Akıllı Futbolcu Arama ve Benzer Oyuncu Bulma**")
     st.markdown("---")
 
-    # Veriyi Yükle
-    with st.spinner("Veri tabanı Google Drive'dan çekiliyor..."):
+    with st.spinner("Veriler yükleniyor..."):
         df, features = load_data_robust()
 
-    if df is None:
-        st.stop()
+    if df is None: st.stop()
 
-    # Kenar Çubuğu (Sidebar)
-    st.sidebar.header("🔍 Arama Paneli")
+    # --- SIDEBAR (ARAMA) ---
+    st.sidebar.header("🔍 Oyuncu Ara")
+    # Text Input kullanıyoruz (Selectbox yerine)
+    search_query = st.sidebar.text_input("Oyuncu İsmi Girin:", placeholder="Örn: mbape, ronalda, neymar...")
+
+    target = None
     
-    # Selectbox: Kullanıcı yazarken filtreleme yapar, çok daha pratiktir.
-    # Benzersiz isimleri alıp sıralıyoruz
-    player_list = sorted(df['Name'].unique().tolist())
-    selected_player_name = st.sidebar.selectbox("Oyuncu Seçiniz:", player_list, index=None, placeholder="Örn: Messi")
+    # Eğer kullanıcı bir şey yazdıysa aramayı başlat
+    if search_query:
+        target, match_type = find_smart_match(df, search_query)
+        
+        if target is None:
+            st.sidebar.error(f"❌ '{search_query}' bulunamadı. Lütfen tekrar deneyin.")
+        else:
+            # Bulunan oyuncuyu kullanıcıya bildirelim
+            if match_type == "Tahmin":
+                st.sidebar.success(f"✅ Bunu mu demek istediniz?\n**{target['Name']}**")
+            else:
+                st.sidebar.success(f"✅ Bulundu: **{target['Name']}**")
 
-    if selected_player_name:
-        # Seçilen oyuncuyu bul
-        target = df[df['Name'] == selected_player_name].iloc[0]
-        
-        # --- ANA GÖVDE ---
-        
+    # --- ANA EKRAN ---
+    if target is not None:
         # 1. Bölüm: Oyuncu Kartı
         col1, col2, col3, col4 = st.columns(4)
         
         val_formatted = f"€{target.get('Value', 0):,.0f}"
-        wage_formatted = f"€{target.get('Wage', 0):,.0f}"
         
         col1.metric("Güç (Overall)", int(target['Overall']), delta=int(target['Potential'] - target['Overall']))
         col2.metric("Piyasa Değeri", val_formatted)
         col3.metric("Yaş", int(target['Age']))
         col4.metric("Mevki", target['Position'])
 
-        st.info(f"📋 **Analiz Özeti:** {yazili_analiz_uret(target)}")
+        st.info(f"📋 **Analiz:** {yazili_analiz_uret(target)}")
         
-        # Detaylar
-        with st.expander(f"{target['Name']} - Detaylı Özellikler"):
-            st.json(target[['Club', 'Preferred Foot', 'Speed', 'Finishing', 'Heading']].to_dict())
+        st.markdown(f"### 🦁 {target['Name']} ({target['Club']})")
 
         st.markdown("---")
-        st.subheader("🔄 Benzer Profildeki Oyuncular (Alternatifler)")
+        st.subheader("🔄 Alternatif Öneriler")
 
         # 2. Bölüm: KNN Analizi
         target_pos = target.get('Position', None)
         pool = df[df['Position'] == target_pos].copy()
-        
-        # Havuz çok küçükse tüm veriyi kullan
-        if len(pool) < 2: 
-            pool = df.copy()
+        if len(pool) < 2: pool = df.copy()
 
-        # Model Kurulumu
         scaler = StandardScaler()
         X = pool[features]
         X_scaled = scaler.fit_transform(X)
@@ -199,12 +230,11 @@ def main():
         target_vec = scaler.transform(target[features].to_frame().T)
         distances, indices = knn.kneighbors(target_vec)
 
-        # Sonuçları Hazırla
         results = []
-        for i, idx in enumerate(indices[0][1:]): # İlk sonuç kendisi olduğu için atlıyoruz
+        for i, idx in enumerate(indices[0][1:]):
             n = pool.iloc[idx]
             dist = distances[0][i + 1]
-            score = max(0, 100 - (dist * 10)) # Basit bir benzerlik skoru
+            score = max(0, 100 - (dist * 10))
 
             tag = "Normal"
             val = target.get('Value', 0)
@@ -219,17 +249,14 @@ def main():
                 "Takım": n.get('Club', '-'),
                 "Mevki": n.get('Position', '-'),
                 "Güç": int(n.get('Overall', 0)),
-                "Potansiyel": int(n.get('Potential', 0)),
                 "Değer": f"€{n.get('Value', 0):,.0f}",
                 "Benzerlik": f"%{score:.0f}",
                 "Durum": tag
             })
 
-        # Tabloyu Göster
         if results:
             res_df = pd.DataFrame(results)
             
-            # Renklendirme fonksiyonu (Opsiyonel görselleştirme)
             def highlight_bargain(row):
                 if "Kelepir" in row['Durum']:
                     return ['background-color: #d4edda'] * len(row)
@@ -243,11 +270,8 @@ def main():
                 use_container_width=True,
                 hide_index=True
             )
-        else:
-            st.warning("Yeterli veri bulunamadığı için benzer oyuncu önerilemiyor.")
-
-    else:
-        st.info("👈 Lütfen sol menüden veya yukarıdan bir oyuncu seçiniz.")
+    elif not search_query:
+        st.info("👈 Analiz yapmak için soldaki kutuya bir oyuncu ismi yazın.")
 
 if __name__ == "__main__":
     main()
