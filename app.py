@@ -138,16 +138,24 @@ def load_data():
 def analyze_player(df, player_name, features):
     clean_input = normalize_text(player_name)
     
+    # Önce tam eşleşme
     matches = df[df['Clean_Name'].str.contains(clean_input, na=False, regex=False)]
     
     target = None
     if not matches.empty:
         target = matches.sort_values(by='Overall', ascending=False).iloc[0]
     else:
-        all_names = df['Clean_Name'].unique().tolist()
-        close = difflib.get_close_matches(clean_input, all_names, n=1, cutoff=0.5)
-        if close:
-            target = df[df['Clean_Name'] == close[0]].iloc[0]
+        # Kısmi eşleşme (soyadı veya isim)
+        matches = df[df['Clean_Name'].str.contains(clean_input.split()[0] if ' ' in clean_input else clean_input, na=False, regex=False)]
+        if not matches.empty:
+            target = matches.sort_values(by='Overall', ascending=False).iloc[0]
+        else:
+            # Fuzzy matching (benzer isimler)
+            all_names = df['Clean_Name'].unique().tolist()
+            close = difflib.get_close_matches(clean_input, all_names, n=3, cutoff=0.4)
+            if close:
+                st.info(f"🔍 '{player_name}' bulunamadı. Benzer isimler: {', '.join([df[df['Clean_Name']==c]['Name'].iloc[0] for c in close])}")
+                target = df[df['Clean_Name'] == close[0]].iloc[0]
     
     if target is None:
         return None, None
@@ -189,6 +197,17 @@ st.markdown("### Profesyonel Futbolcu Analiz Sistemi")
 df, features = load_data()
 
 if df is not None:
+    # Oyuncu sayısını göster
+    st.sidebar.success(f"📊 Veri Tabanı: **{len(df):,}** oyuncu")
+    
+    # Örnek oyuncular
+    with st.sidebar.expander("💡 Örnek Aramalar"):
+        st.write("• Messi")
+        st.write("• Ronaldo")
+        st.write("• Haaland")
+        st.write("• Mbappe")
+        st.write("• De Bruyne")
+    
     player_input = st.text_input("🔍 Oyuncu Adını Girin:", placeholder="Örnek: Messi, Ronaldo, Haaland...")
     
     if st.button("🎯 Analiz Et"):
