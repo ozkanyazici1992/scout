@@ -13,7 +13,7 @@ warnings.filterwarnings('ignore')
 
 # Sayfa ayarları
 st.set_page_config(
-    page_title="Turquoise Scout AI",
+    page_title="ProScout AI",
     page_icon="⚽",
     layout="wide"
 )
@@ -70,11 +70,6 @@ def load_data():
             csv_content = io.StringIO(response.content.decode('utf-8'))
             df = pd.read_csv(csv_content)
             
-            # DEBUG: İlk satırları kontrol et
-            st.write(f"📊 Toplam Oyuncu: {len(df)}")
-            st.write(f"📋 Sütunlar: {df.columns.tolist()}")
-            st.write(f"👤 İlk 3 Oyuncu: {df.head(3)['name'].tolist() if 'name' in df.columns else 'Sütun bulunamadı'}")
-            
             df.columns = df.columns.str.strip().str.lower()
             
             col_map = {
@@ -108,34 +103,33 @@ def load_data():
                     df[col] = 0 if col not in ['Name', 'Club', 'Position', 'Preferred Foot'] else 'Bilinmiyor'
             
             df['Name'] = df['Name'].astype(str)
-            
-            # İsim sütunu otomatik düzeltme
-            if df['Name'].iloc[0].replace('.', '').isdigit():
-                obj_cols = df.select_dtypes(include=['object']).columns
-                for c in obj_cols:
-                    if c != 'Name' and not str(df[c].iloc[0]).replace('.', '').isdigit():
-                        if len(str(df[c].iloc[0])) > 2:
-                            df['Name'] = df[c]
-                            st.info(f"✅ İsim sütunu '{c}' olarak düzeltildi")
-                            break
-            
             df['Clean_Name'] = df['Name'].apply(normalize_text)
             
-            # DEBUG: İsim örnekleri
-            st.write(f"🔍 Temizlenmiş isim örnekleri: {df['Clean_Name'].head(5).tolist()}")
-            
             for col in ['Value', 'Wage']:
-                if col in df.columns and df[col].dtype == 'object':
-                    df[col] = df[col].astype(str).str.replace('€', '', regex=False).str.replace('£', '', regex=False)
+                col_options = [f'{col}(£)', f'{col}(€)', col.lower(), f'{col.lower()}(£)']
+                found_col = None
+                for opt in col_options:
+                    if opt in df.columns:
+                        found_col = opt
+                        break
+                
+                if found_col and df[found_col].dtype == 'object':
+                    df[col] = df[found_col].astype(str).str.replace('€', '', regex=False).str.replace('£', '', regex=False)
                     df[col] = df[col].str.replace('K', '000', regex=False).str.replace('M', '000000', regex=False)
                     df[col] = df[col].str.replace('.', '', regex=False)
                     extracted = df[col].str.extract(r'(\d+)', expand=False)
                     df[col] = pd.to_numeric(extracted, errors='coerce').fillna(0)
+                elif col not in df.columns:
+                    df[col] = 0
             
             num_cols = ['Overall', 'Potential', 'Age', 'Value', 'Wage', 'Finishing', 'Heading', 'Speed']
             for col in num_cols:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+            
+            # VERİ KONTROLÜ
+            st.sidebar.info(f"✅ {len(df)} oyuncu yüklendi")
+            st.sidebar.write(f"📝 İlk 5 isim: {df['Name'].head(5).tolist()}")
             
             return df, ['Overall', 'Potential', 'Age', 'Value', 'Wage']
         else:
@@ -148,16 +142,33 @@ def load_data():
 def analyze_player(df, player_name, features):
     clean_input = normalize_text(player_name)
     
+    # DEBUG
+    st.write(f"🔍 Aranan (normalize): '{clean_input}'")
+    st.write(f"📊 Toplam kayıt: {len(df)}")
+    
+    # Önce tam eşleşme
     matches = df[df['Clean_Name'].str.contains(clean_input, na=False, regex=False)]
+    
+    st.write(f"✅ Bulunan: {len(matches)} oyuncu")
+    
+    if not matches.empty:
+        st.write(f"İlk 3 eşleşme: {matches['Name'].head(3).tolist()}")
     
     target = None
     if not matches.empty:
         target = matches.sort_values(by='Overall', ascending=False).iloc[0]
     else:
-        all_names = df['Clean_Name'].unique().tolist()
-        close = difflib.get_close_matches(clean_input, all_names, n=1, cutoff=0.5)
-        if close:
-            target = df[df['Clean_Name'] == close[0]].iloc[0]
+        # Kısmi eşleşme (soyadı veya isim)
+        matches = df[df['Clean_Name'].str.contains(clean_input.split()[0] if ' ' in clean_input else clean_input, na=False, regex=False)]
+        if not matches.empty:
+            target = matches.sort_values(by='Overall', ascending=False).iloc[0]
+        else:
+            # Fuzzy matching (benzer isimler)
+            all_names = df['Clean_Name'].unique().tolist()
+            close = difflib.get_close_matches(clean_input, all_names, n=3, cutoff=0.4)
+            if close:
+                st.info(f"🔍 '{player_name}' bulunamadı. Benzer isimler: {', '.join([df[df['Clean_Name']==c]['Name'].iloc[0] for c in close])}")
+                target = df[df['Clean_Name'] == close[0]].iloc[0]
     
     if target is None:
         return None, None
@@ -193,12 +204,40 @@ def analyze_player(df, player_name, features):
     return target, recommendations
 
 # Ana sayfa
-st.title("⚽ TURQUOISE SCOUT AI")
-st.markdown("### Futbolcu Analiz ve Öneri Sistemi")
+st.title("⚽ PROSCOUT AI")
+st.markdown("### Profesyonel Futbolcu Analiz Sistemi")
+
+# Cache temizleme butonu
+if st.sidebar.button("🔄 Veritabanını Yenile"):
+    st.cache_data.clear()
+    st.rerun()
 
 df, features = load_data()
 
 if df is not None:
+    # Oyuncu sayısını göster
+    st.sidebar.success(f"📊 Veri Tabanı: **{len(df):,}** oyuncu")
+    
+    # Hızlı arama sidebar
+    with st.sidebar.expander("🔍 Hızlı Arama"):
+        search_quick = st.text_input("Ara:", key="quick_search")
+        if search_quick:
+            quick_results = df[df['Clean_Name'].str.contains(normalize_text(search_quick), na=False, regex=False)]
+            if not quick_results.empty:
+                st.write(f"**Bulunan {len(quick_results)} oyuncu:**")
+                for _, p in quick_results.head(10).iterrows():
+                    st.write(f"• {p['Name']} ({p['Club']})")
+            else:
+                st.warning("Bulunamadı")
+    
+    # Örnek oyuncular
+    with st.sidebar.expander("💡 Örnek Aramalar"):
+        st.write("• Messi")
+        st.write("• Ronaldo")
+        st.write("• Haaland")
+        st.write("• Mbappe")
+        st.write("• De Bruyne")
+    
     player_input = st.text_input("🔍 Oyuncu Adını Girin:", placeholder="Örnek: Messi, Ronaldo, Haaland...")
     
     if st.button("🎯 Analiz Et"):
@@ -232,7 +271,7 @@ if df is not None:
                     st.subheader("🔄 Benzer Oyuncular (Top 10)")
                     
                     rec_df = pd.DataFrame(recommendations)
-                    st.dataframe(rec_df, use_container_width=True, hide_index=True)
+                    st.dataframe(rec_df, width='stretch', hide_index=True)
                     
                 else:
                     st.error(f"❌ '{player_input}' oyuncusu bulunamadı. Lütfen farklı bir isim deneyin.")
@@ -243,6 +282,6 @@ else:
 
 st.markdown("---")
 st.markdown(
-    "<div style='text-align: center; color: white;'>💙 Turquoise Scout AI | Powered by Streamlit</div>",
+    "<div style='text-align: center; color: white;'>⚽ ProScout AI | Powered by AI</div>",
     unsafe_allow_html=True
 )
