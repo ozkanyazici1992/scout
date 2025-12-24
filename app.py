@@ -222,7 +222,7 @@ if df is not None:
                     st.subheader("🔄 Benzer Oyuncular (Top 10)")
                     
                     rec_df = pd.DataFrame(recommendations)
-                    st.dataframe(rec_df, width='stretch', hide_index=True)
+                    st.dataframe(rec_df, use_container_width=True, hide_index=True)
                     
                 else:
                     st.error(f"❌ '{player_input}' oyuncusu bulunamadı. Lütfen farklı bir isim deneyin.")
@@ -233,6 +233,6 @@ else:
 
 st.markdown("---")
 st.markdown(
-    "<div style='text-align: center; color: white;'>⚽ ProScout AI | Powered by AI</div>",
+    "<div style='text-align: center; color: white;'>💙 Turquoise Scout AI | Powered by Streamlit</div>",
     unsafe_allow_html=True
 )
