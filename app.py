@@ -127,6 +127,10 @@ def load_data():
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
             
+            # VERİ KONTROLÜ
+            st.sidebar.info(f"✅ {len(df)} oyuncu yüklendi")
+            st.sidebar.write(f"📝 İlk 5 isim: {df['Name'].head(5).tolist()}")
+            
             return df, ['Overall', 'Potential', 'Age', 'Value', 'Wage']
         else:
             st.error("Veri yüklenemedi!")
@@ -138,8 +142,17 @@ def load_data():
 def analyze_player(df, player_name, features):
     clean_input = normalize_text(player_name)
     
+    # DEBUG
+    st.write(f"🔍 Aranan (normalize): '{clean_input}'")
+    st.write(f"📊 Toplam kayıt: {len(df)}")
+    
     # Önce tam eşleşme
     matches = df[df['Clean_Name'].str.contains(clean_input, na=False, regex=False)]
+    
+    st.write(f"✅ Bulunan: {len(matches)} oyuncu")
+    
+    if not matches.empty:
+        st.write(f"İlk 3 eşleşme: {matches['Name'].head(3).tolist()}")
     
     target = None
     if not matches.empty:
@@ -199,6 +212,18 @@ df, features = load_data()
 if df is not None:
     # Oyuncu sayısını göster
     st.sidebar.success(f"📊 Veri Tabanı: **{len(df):,}** oyuncu")
+    
+    # Hızlı arama sidebar
+    with st.sidebar.expander("🔍 Hızlı Arama"):
+        search_quick = st.text_input("Ara:", key="quick_search")
+        if search_quick:
+            quick_results = df[df['Clean_Name'].str.contains(normalize_text(search_quick), na=False, regex=False)]
+            if not quick_results.empty:
+                st.write(f"**Bulunan {len(quick_results)} oyuncu:**")
+                for _, p in quick_results.head(10).iterrows():
+                    st.write(f"• {p['Name']} ({p['Club']})")
+            else:
+                st.warning("Bulunamadı")
     
     # Örnek oyuncular
     with st.sidebar.expander("💡 Örnek Aramalar"):
