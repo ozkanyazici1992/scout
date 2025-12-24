@@ -7,6 +7,9 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import NearestNeighbors
 import requests
 import io
+import warnings
+
+warnings.filterwarnings('ignore')
 
 # Sayfa ayarları
 st.set_page_config(
@@ -45,17 +48,9 @@ st.markdown("""
         text-align: center;
         text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
     }
-    .player-card {
-        background: white;
-        padding: 20px;
-        border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        margin: 10px 0;
-    }
     </style>
 """, unsafe_allow_html=True)
 
-# Metin normalleştirme
 def normalize_text(text):
     if pd.isna(text) or text == "":
         return ""
@@ -64,7 +59,6 @@ def normalize_text(text):
     text = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('utf-8')
     return text.lower().strip()
 
-# Veri yükleme
 @st.cache_data
 def load_data():
     file_id = '1nl2hcZP6GltTtjPFzjb8KuOmzRqDLjf6'
@@ -78,7 +72,6 @@ def load_data():
             
             df.columns = df.columns.str.strip().str.lower()
             
-            # Sütun eşleştirme
             col_map = {
                 'Name': ['name', 'player', 'full name', 'ad soyad'],
                 'Club': ['club', 'team', 'current club', 'takim'],
@@ -112,12 +105,13 @@ def load_data():
             df['Name'] = df['Name'].astype(str)
             df['Clean_Name'] = df['Name'].apply(normalize_text)
             
-            # Para birimi temizliği
             for col in ['Value', 'Wage']:
-                if df[col].dtype == 'object':
-                    df[col] = (df[col].astype(str).str.replace('€', '', regex=False).str.replace('£', '', regex=False)
-                               .str.replace('K', '000', regex=False).str.replace('M', '000000', regex=False)
-                               .str.replace('.', '', regex=False).str.extract(r'(\d+)')[0].astype(float))
+                if col in df.columns and df[col].dtype == 'object':
+                    df[col] = df[col].astype(str).str.replace('€', '', regex=False).str.replace('£', '', regex=False)
+                    df[col] = df[col].str.replace('K', '000', regex=False).str.replace('M', '000000', regex=False)
+                    df[col] = df[col].str.replace('.', '', regex=False)
+                    extracted = df[col].str.extract(r'(\d+)', expand=False)
+                    df[col] = pd.to_numeric(extracted, errors='coerce').fillna(0)
             
             num_cols = ['Overall', 'Potential', 'Age', 'Value', 'Wage', 'Finishing', 'Heading', 'Speed']
             for col in num_cols:
@@ -132,7 +126,6 @@ def load_data():
         st.error(f"Hata: {e}")
         return None, None
 
-# Analiz fonksiyonu
 def analyze_player(df, player_name, features):
     clean_input = normalize_text(player_name)
     
@@ -150,7 +143,6 @@ def analyze_player(df, player_name, features):
     if target is None:
         return None, None
     
-    # Benzer oyuncular
     target_pos = target.get('Position', None)
     pool = df[df['Position'] == target_pos].copy()
     if len(pool) < 2:
@@ -185,11 +177,9 @@ def analyze_player(df, player_name, features):
 st.title("⚽ TURQUOISE SCOUT AI")
 st.markdown("### Futbolcu Analiz ve Öneri Sistemi")
 
-# Veri yükleme
 df, features = load_data()
 
 if df is not None:
-    # Oyuncu arama
     player_input = st.text_input("🔍 Oyuncu Adını Girin:", placeholder="Örnek: Messi, Ronaldo, Haaland...")
     
     if st.button("🎯 Analiz Et"):
@@ -198,7 +188,6 @@ if df is not None:
                 target, recommendations = analyze_player(df, player_input, features)
                 
                 if target is not None:
-                    # Oyuncu bilgileri
                     st.markdown("---")
                     st.subheader(f"📊 {target['Name'].upper()}")
                     
@@ -217,10 +206,9 @@ if df is not None:
                         st.write(f"**🏟️ Takım:** {target.get('Club', '-')}")
                         st.write(f"**📍 Mevki:** {target.get('Position', '-')}")
                     with col6:
-                        st.write(f"**🦶 Tercih Ettiği Ayak:** {target.get('Preferred Foot', '-')}")
+                        st.write(f"**🦶 Ayak:** {target.get('Preferred Foot', '-')}")
                         st.write(f"**💵 Maaş:** €{target.get('Wage', 0):,.0f}")
                     
-                    # Öneriler
                     st.markdown("---")
                     st.subheader("🔄 Benzer Oyuncular (Top 10)")
                     
@@ -234,7 +222,6 @@ if df is not None:
 else:
     st.error("❌ Veri tabanı yüklenemedi. Lütfen tekrar deneyin.")
 
-# Footer
 st.markdown("---")
 st.markdown(
     "<div style='text-align: center; color: white;'>💙 Turquoise Scout AI | Powered by Streamlit</div>",
