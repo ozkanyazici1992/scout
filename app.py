@@ -65,10 +65,15 @@ def load_data():
     url = f'https://drive.google.com/uc?id={file_id}&export=download'
     
     try:
-        response = requests.get(url)
+        response = requests.get(url, allow_redirects=True)
         if response.status_code == 200:
             csv_content = io.StringIO(response.content.decode('utf-8'))
             df = pd.read_csv(csv_content)
+            
+            # DEBUG: İlk satırları kontrol et
+            st.write(f"📊 Toplam Oyuncu: {len(df)}")
+            st.write(f"📋 Sütunlar: {df.columns.tolist()}")
+            st.write(f"👤 İlk 3 Oyuncu: {df.head(3)['name'].tolist() if 'name' in df.columns else 'Sütun bulunamadı'}")
             
             df.columns = df.columns.str.strip().str.lower()
             
@@ -103,7 +108,21 @@ def load_data():
                     df[col] = 0 if col not in ['Name', 'Club', 'Position', 'Preferred Foot'] else 'Bilinmiyor'
             
             df['Name'] = df['Name'].astype(str)
+            
+            # İsim sütunu otomatik düzeltme
+            if df['Name'].iloc[0].replace('.', '').isdigit():
+                obj_cols = df.select_dtypes(include=['object']).columns
+                for c in obj_cols:
+                    if c != 'Name' and not str(df[c].iloc[0]).replace('.', '').isdigit():
+                        if len(str(df[c].iloc[0])) > 2:
+                            df['Name'] = df[c]
+                            st.info(f"✅ İsim sütunu '{c}' olarak düzeltildi")
+                            break
+            
             df['Clean_Name'] = df['Name'].apply(normalize_text)
+            
+            # DEBUG: İsim örnekleri
+            st.write(f"🔍 Temizlenmiş isim örnekleri: {df['Clean_Name'].head(5).tolist()}")
             
             for col in ['Value', 'Wage']:
                 if col in df.columns and df[col].dtype == 'object':
