@@ -31,88 +31,113 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap');
     
-    /* Ana Arka Plan */
-    .stApp { background-color: #E0F7FA; }
+    /* Ana Arka Plan - Stadyum Atmosferi */
+    .stApp { 
+        background: linear-gradient(135deg, #0A2E36 0%, #1B4D3E 50%, #0F3D2C 100%);
+    }
     
     /* Genel Yazı Fontu ve Rengi */
     html, body, p, h1, h2, h3, h4, h5, h6, span, div, li {
         font-family: 'Montserrat', sans-serif;
-        color: #004D40 !important;
+        color: #FFFFFF !important;
     }
 
     /* Başlık Stilleri */
     .main-title {
         text-align: center; font-size: 3.5rem; font-weight: 900;
-        color: #006064 !important; letter-spacing: -2px;
-        text-transform: uppercase; text-shadow: 2px 2px 0px #ffffff;
+        color: #00FF87 !important; letter-spacing: -2px;
+        text-transform: uppercase; 
+        text-shadow: 0 0 20px rgba(0, 255, 135, 0.5), 2px 2px 4px rgba(0, 0, 0, 0.8);
         margin-top: 20px;
+        animation: glow 2s ease-in-out infinite alternate;
+    }
+    @keyframes glow {
+        from { text-shadow: 0 0 20px rgba(0, 255, 135, 0.5), 2px 2px 4px rgba(0, 0, 0, 0.8); }
+        to { text-shadow: 0 0 30px rgba(0, 255, 135, 0.8), 2px 2px 4px rgba(0, 0, 0, 0.8); }
     }
     .sub-title {
-        text-align: center; font-size: 1.2rem; color: #00838F !important;
+        text-align: center; font-size: 1.2rem; color: #B0FFE1 !important;
         margin-bottom: 35px; font-weight: 500;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
     }
 
-    /* Arama Kutusu */
+    /* Arama Kutusu - Çim Yeşili Vurgu */
     .stTextInput > div > div > input {
         text-align: center; font-size: 1.3rem; padding: 12px;
-        border-radius: 30px; border: 2px solid #4DD0E1;
-        background-color: #ffffff; color: #006064 !important;
+        border-radius: 30px; border: 3px solid #00FF87;
+        background: linear-gradient(135deg, #1A3A2E 0%, #0F2921 100%);
+        color: #FFFFFF !important;
+        box-shadow: 0 0 20px rgba(0, 255, 135, 0.3);
+        font-weight: 600;
     }
     .stTextInput > div > div > input:focus {
-        border-color: #006064; box-shadow: 0 0 15px rgba(0, 96, 100, 0.2);
+        border-color: #00FF87; 
+        box-shadow: 0 0 30px rgba(0, 255, 135, 0.6);
+        background: linear-gradient(135deg, #1F4D3A 0%, #14332A 100%);
+    }
+    .stTextInput > div > div > input::placeholder {
+        color: #7FD9B8 !important;
+        opacity: 0.7;
     }
     
-    /* Seçim Butonları */
+    /* Seçim Butonları - Futbol Sahası Renkleri */
     .stButton > button {
         width: 100%;
-        border-radius: 10px;
-        border: 1px solid #004D40;
-        color: #004D40;
-        background-color: #ffffff;
-        transition: 0.3s;
+        border-radius: 12px;
+        border: 2px solid #00FF87;
+        color: #FFFFFF !important;
+        background: linear-gradient(135deg, #1B5E3E 0%, #0F3D2C 100%);
+        transition: all 0.3s ease;
+        font-weight: 700;
+        padding: 10px 20px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
     }
     .stButton > button:hover {
-        background-color: #B2DFDB;
-        color: #000000;
+        background: linear-gradient(135deg, #00FF87 0%, #00CC6F 100%);
+        color: #0A2E36 !important;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 255, 135, 0.4);
     }
 
     /* --- OYUNCU KARTI TASARIMI --- */
     .player-card {
-        background-color: #ffffff;
+        background: linear-gradient(135deg, #1A3A2E 0%, #0F2921 100%);
         border-radius: 16px;
         padding: 15px;
         margin: 10px 0;
-        box-shadow: 0 4px 10px rgba(0, 77, 64, 0.08);
-        border: 1px solid #B2DFDB;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+        border: 2px solid #00FF87;
         text-align: center;
         transition: transform 0.2s ease-in-out;
     }
     .player-card:hover {
         transform: translateY(-5px);
-        border-color: #009688;
-        box-shadow: 0 8px 15px rgba(0, 77, 64, 0.15);
+        border-color: #00FF87;
+        box-shadow: 0 12px 30px rgba(0, 255, 135, 0.4);
     }
     
     .card-header {
-        font-size: 1.1rem; font-weight: 800; color: #004D40 !important;
+        font-size: 1.1rem; font-weight: 800; color: #00FF87 !important;
         margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .card-sub {
-        font-size: 0.8rem; color: #546E7A !important; margin-bottom: 12px;
+        font-size: 0.8rem; color: #B0FFE1 !important; margin-bottom: 12px;
         height: 35px; display: flex; align-items: center; justify-content: center; line-height: 1.1;
     }
     
     /* Kart İçi İstatistik Kutucukları */
     .stat-row {
         display: flex; justify-content: space-between; margin-bottom: 6px;
-        background-color: #F0F4C3; border-radius: 6px; padding: 4px 8px;
+        background: rgba(0, 255, 135, 0.1); border-radius: 6px; padding: 4px 8px;
+        border: 1px solid rgba(0, 255, 135, 0.3);
     }
-    .stat-label { font-size: 0.85rem; font-weight: 600; color: #558B2F !important; }
-    .stat-val { font-size: 0.9rem; font-weight: 800; color: #33691E !important; }
+    .stat-label { font-size: 0.85rem; font-weight: 600; color: #B0FFE1 !important; }
+    .stat-val { font-size: 0.9rem; font-weight: 800; color: #00FF87 !important; }
 
     .price-tag {
-        background-color: #E0F2F1; border-radius: 6px; padding: 4px 8px; margin-bottom: 8px;
-        font-size: 0.9rem; font-weight: 700; color: #00695C !important;
+        background: rgba(0, 255, 135, 0.15); border-radius: 6px; padding: 4px 8px; margin-bottom: 8px;
+        font-size: 0.9rem; font-weight: 700; color: #00FF87 !important;
+        border: 1px solid rgba(0, 255, 135, 0.3);
     }
 
     .match-badge {
@@ -122,8 +147,30 @@ st.markdown("""
     }
 
     /* Metrikler ve Toast */
-    div[data-testid="stMetricValue"] { color: #000000 !important; }
-    div[data-testid="stMetricLabel"] { color: #006064 !important; }
+    div[data-testid="stMetricValue"] { color: #00FF87 !important; }
+    div[data-testid="stMetricLabel"] { color: #B0FFE1 !important; }
+    
+    /* Info ve Success Mesajları */
+    .stAlert { 
+        background: linear-gradient(135deg, #1A3A2E 0%, #0F2921 100%) !important;
+        border: 2px solid #00FF87 !important;
+        color: #FFFFFF !important;
+    }
+    
+    /* Divider */
+    hr {
+        border-color: rgba(0, 255, 135, 0.3) !important;
+    }
+    
+    /* Alt Bilgi */
+    .footer-text {
+        text-align: center; 
+        color: #7FD9B8 !important; 
+        margin-top: 100px; 
+        opacity: 0.7; 
+        font-weight: bold;
+        text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -389,7 +436,7 @@ def main():
 <div class="match-badge" style="background-color: {badge_color}">%{score:.0f} UYUM</div>"""
                 
             if n['Value'] > 0 and n['Value'] < target['Value'] * 0.6: 
-                card_html += '<div style="margin-top:8px; font-size:0.8rem; color:#2E7D32; font-weight:800;">💰 FIRSAT</div>'
+                card_html += '<div style="margin-top:8px; font-size:0.8rem; color:#00FF87; font-weight:800;">💰 FIRSAT</div>'
             
             card_html += "</div>"
             
@@ -399,7 +446,7 @@ def main():
     elif not search_query:
         st.markdown(
             """
-            <div style='text-align: center; color: #006064; margin-top: 100px; opacity: 0.8; font-weight: bold;'>
+            <div class='footer-text'>
             Futbolist AI Database v2.1 • Powered by Python
             </div>
             """, 
