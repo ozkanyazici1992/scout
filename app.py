@@ -321,35 +321,29 @@ def main():
             club_str = n.get('Club', 'Bilinmiyor')
             if len(str(club_str)) > 15: club_str = str(club_str)[:13] + ".."
 
+            # --- DÜZELTME: HTML KODLARI SOLA YASLANDI ---
+            # Streamlit'in HTML'i kod bloğu sanmaması için girintiyi sildik.
+            card_html = f"""<div class="player-card">
+<div class="card-header">{n['Name']}</div>
+<div class="card-sub">{club_str}<br>{n.get('Position','-')} • {int(n.get('Age',0))} Yaş</div>
+<div class="stat-row">
+<span class="stat-label">GÜÇ</span>
+<span class="stat-val">{int(n['Overall'])}</span>
+</div>
+<div class="stat-row">
+<span class="stat-label">POTANSİYEL</span>
+<span class="stat-val">{int(n['Potential'])}</span>
+</div>
+<div class="price-tag">{val_str}</div>
+<div class="match-badge" style="background-color: {badge_color}">%{score:.0f} UYUM</div>"""
+                
+            # Kelepir Kontrolü
+            if n['Value'] > 0 and n['Value'] < target['Value'] * 0.6: 
+                card_html += '<div style="margin-top:8px; font-size:0.8rem; color:#2E7D32; font-weight:800;">💰 FIRSAT</div>'
+            
+            card_html += "</div>" # Kapanış Div
+            
             with cols[i]:
-                # --- HTML KART YAPISI ---
-                card_html = f"""
-                <div class="player-card">
-                    <div class="card-header">{n['Name']}</div>
-                    <div class="card-sub">{club_str}<br>{n.get('Position','-')} • {int(n.get('Age',0))} Yaş</div>
-                    
-                    <div class="stat-row">
-                        <span class="stat-label">GÜÇ</span>
-                        <span class="stat-val">{int(n['Overall'])}</span>
-                    </div>
-                    <div class="stat-row">
-                        <span class="stat-label">POTANSİYEL</span>
-                        <span class="stat-val">{int(n['Potential'])}</span>
-                    </div>
-                    
-                    <div class="price-tag">{val_str}</div>
-                    
-                    <div class="match-badge" style="background-color: {badge_color}">
-                        %{score:.0f} UYUM
-                    </div>
-                """
-                
-                # Kelepir Kontrolü (%40 daha ucuzsa)
-                if n['Value'] > 0 and n['Value'] < target['Value'] * 0.6: 
-                    card_html += '<div style="margin-top:8px; font-size:0.8rem; color:#2E7D32; font-weight:800;">💰 FIRSAT</div>'
-                
-                card_html += "</div>"
-                
                 st.markdown(card_html, unsafe_allow_html=True)
 
     elif not search_query:
