@@ -22,76 +22,90 @@ st.set_page_config(
 # Gereksiz uyarıları gizle
 warnings.filterwarnings('ignore')
 
-# --- ÖZEL CSS (DÜZELTİLMİŞ RENKLER) ---
+# --- ÖZEL CSS (GELİŞMİŞ KART TASARIMI) ---
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;800&display=swap');
     
-    /* Ana Arka Plan Rengi - Açık Turkuaz */
-    .stApp {
-        background-color: #E0F7FA;
-    }
+    /* Ana Arka Plan */
+    .stApp { background-color: #E0F7FA; }
     
-    /* GENEL YAZI RENGİ AYARI (Beyazı engellemek için) */
-    html, body, [class*="css"] {
+    /* Genel Yazı Fontu ve Rengi */
+    html, body, p, h1, h2, h3, h4, h5, h6, span, div, li {
         font-family: 'Montserrat', sans-serif;
-        color: #004D40; /* Varsayılan yazı rengi: Çok koyu yeşil/siyah */
-    }
-
-    /* Tüm paragraflar, başlıklar ve metinler için zorla koyu renk */
-    p, h1, h2, h3, h4, h5, h6, li, span, div {
         color: #004D40 !important;
     }
 
-    /* Başlık Stili */
+    /* Başlık Stilleri */
     .main-title {
-        font-family: 'Montserrat', sans-serif;
-        text-align: center;
-        font-size: 3.5rem;
-        font-weight: 900;
-        color: #006064 !important; /* Koyu Petrol Yeşili */
-        margin-bottom: 0px;
-        letter-spacing: -2px;
-        text-transform: uppercase;
-        text-shadow: 2px 2px 0px #ffffff;
+        text-align: center; font-size: 3.5rem; font-weight: 900;
+        color: #006064 !important; letter-spacing: -2px;
+        text-transform: uppercase; text-shadow: 2px 2px 0px #ffffff;
+        margin-top: 20px;
     }
-    
     .sub-title {
-        text-align: center;
-        font-size: 1.2rem;
-        color: #00838F !important;
-        margin-bottom: 35px;
-        font-weight: 500;
-    }
-    
-    /* Arama Kutusu Özelleştirme */
-    .stTextInput > div > div > input {
-        text-align: center;
-        font-size: 1.3rem;
-        padding: 12px;
-        border-radius: 30px;
-        border: 2px solid #4DD0E1;
-        background-color: #ffffff;
-        color: #006064 !important; /* Input içi yazı rengi */
-    }
-    .stTextInput > div > div > input:focus {
-        border-color: #006064;
-        box-shadow: 0 0 15px rgba(0, 96, 100, 0.2);
-    }
-    
-    /* Metrik Kartları (Sayılar ve Etiketler) */
-    div[data-testid="stMetricValue"] {
-        color: #000000 !important; /* Sayılar Tam Siyah Olsun */
-    }
-    div[data-testid="stMetricLabel"] {
-        color: #006064 !important; /* Etiketler Koyu Yeşil */
+        text-align: center; font-size: 1.2rem; color: #00838F !important;
+        margin-bottom: 35px; font-weight: 500;
     }
 
-    /* Toast Mesajları */
-    div[data-testid="stToast"] {
-        background-color: #FFFFFF;
-        color: #000000 !important;
+    /* Arama Kutusu */
+    .stTextInput > div > div > input {
+        text-align: center; font-size: 1.3rem; padding: 12px;
+        border-radius: 30px; border: 2px solid #4DD0E1;
+        background-color: #ffffff; color: #006064 !important;
     }
+    .stTextInput > div > div > input:focus {
+        border-color: #006064; box-shadow: 0 0 15px rgba(0, 96, 100, 0.2);
+    }
+
+    /* --- OYUNCU KARTI TASARIMI (YENİ) --- */
+    .player-card {
+        background-color: #ffffff;
+        border-radius: 16px;
+        padding: 15px;
+        margin: 10px 0;
+        box-shadow: 0 4px 10px rgba(0, 77, 64, 0.08); /* Hafif gölge */
+        border: 1px solid #B2DFDB;
+        text-align: center;
+        transition: transform 0.2s ease-in-out;
+    }
+    .player-card:hover {
+        transform: translateY(-5px);
+        border-color: #009688;
+        box-shadow: 0 8px 15px rgba(0, 77, 64, 0.15);
+    }
+    
+    .card-header {
+        font-size: 1.1rem; font-weight: 800; color: #004D40 !important;
+        margin-bottom: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .card-sub {
+        font-size: 0.8rem; color: #546E7A !important; margin-bottom: 12px;
+        height: 35px; display: flex; align-items: center; justify-content: center; line-height: 1.1;
+    }
+    
+    /* Kart İçi İstatistik Kutucukları */
+    .stat-row {
+        display: flex; justify-content: space-between; margin-bottom: 6px;
+        background-color: #F0F4C3; border-radius: 6px; padding: 4px 8px;
+    }
+    .stat-label { font-size: 0.85rem; font-weight: 600; color: #558B2F !important; }
+    .stat-val { font-size: 0.9rem; font-weight: 800; color: #33691E !important; }
+
+    .price-tag {
+        background-color: #E0F2F1; border-radius: 6px; padding: 4px 8px; margin-bottom: 8px;
+        font-size: 0.9rem; font-weight: 700; color: #00695C !important;
+    }
+
+    .match-badge {
+        display: inline-block; padding: 5px 15px; border-radius: 20px;
+        color: white !important; font-weight: bold; font-size: 0.85rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    /* Metrikler ve Toast */
+    div[data-testid="stMetricValue"] { color: #000000 !important; }
+    div[data-testid="stMetricLabel"] { color: #006064 !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -151,7 +165,7 @@ def load_data_robust():
                 df[col] = 0 if col not in ['Name', 'Club', 'Position', 'Preferred Foot'] else 'Bilinmiyor'
 
         df['Name'] = df['Name'].astype(str)
-        # Basit bir kontrol: İsim sütunu sadece sayı içeriyorsa yanlış sütundur, düzeltmeyi dene
+        # Hatalı isim sütunu düzeltmesi
         if str(df['Name'].iloc[0]).replace('.', '').isdigit():
             obj_cols = df.select_dtypes(include=['object']).columns
             for c in obj_cols:
@@ -208,6 +222,11 @@ def find_smart_match(df, user_input):
         
     return None, None
 
+def format_money(val):
+    if val >= 1000000: return f"€{val/1000000:.1f}M"
+    elif val >= 1000: return f"€{val/1000:.0f}K"
+    else: return "€0"
+
 # -----------------------------------------------------------------------------
 # 3. ANA UYGULAMA AKIŞI
 # -----------------------------------------------------------------------------
@@ -242,14 +261,14 @@ def main():
     if target is not None:
         st.markdown("<br>", unsafe_allow_html=True)
         
-        # OYUNCU KARTI
+        # OYUNCU KARTI (HEADER)
         with st.container():
             col_img, col_info, col_stats = st.columns([1, 2, 2])
             
             with col_info:
                 st.subheader(f"🦁 {target['Name']}")
                 st.markdown(f"**{target['Club']}** | {target['Position']}")
-                st.markdown(f"_{target.get('Age', 0):.0f} Yaş, {str(target.get('Preferred Foot', '-')).title()} Ayak_")
+                st.markdown(f"_{int(target.get('Age', 0))} Yaş, {str(target.get('Preferred Foot', '-')).title()} Ayak_")
                 
                 tags = yazili_analiz_uret(target)
                 if tags:
@@ -258,17 +277,18 @@ def main():
             with col_stats:
                 m1, m2 = st.columns(2)
                 m1.metric("Genel Güç", int(target['Overall']), delta=int(target['Potential'] - target['Overall']))
-                m2.metric("Piyasa Değeri", f"€{target.get('Value', 0):,.0f}")
+                m2.metric("Piyasa Değeri", format_money(target.get('Value', 0)))
                 
                 st.progress(int(target['Overall'])/100, text="Potansiyel Doluluk Oranı")
 
-        # --- AI BENZERLİK ANALİZİ ---
+        # --- AI BENZERLİK ANALİZİ (YENİ KART TASARIMI) ---
         st.divider()
-        st.markdown("#### 🧬 Futbolist AI Öneriyor")
+        st.markdown("#### 🧬 Futbolist AI Scout Önerileri")
         
         target_pos = target.get('Position', None)
-        pool = df[df['Position'] == target_pos].copy()
-        if len(pool) < 2: pool = df.copy()
+        # Sadece aynı veya benzer mevkileri al (Veri setine göre esnetilebilir)
+        pool = df[df['Position'] == target_pos].copy() if target_pos else df.copy()
+        if len(pool) < 6: pool = df.copy()
 
         # KNN
         scaler = StandardScaler()
@@ -281,6 +301,7 @@ def main():
         target_vec = scaler.transform(target[features].to_frame().T)
         distances, indices = knn.kneighbors(target_vec)
 
+        # Kartları Göster
         cols = st.columns(5)
         
         suggestions = indices[0][1:6] 
@@ -291,24 +312,51 @@ def main():
             dist = suggestion_dists[i]
             score = max(0, 100 - (dist * 10))
             
+            # Renk ve Stil Mantığı
+            if score >= 90: badge_color = "#43A047" # Canlı Yeşil
+            elif score >= 80: badge_color = "#FB8C00" # Turuncu
+            else: badge_color = "#E53935" # Kırmızı
+
+            val_str = format_money(n['Value'])
+            club_str = n.get('Club', 'Bilinmiyor')
+            if len(str(club_str)) > 15: club_str = str(club_str)[:13] + ".."
+
             with cols[i]:
-                st.markdown(f"**{n['Name']}**")
-                st.caption(f"{n.get('Club', '-')[:15]}")
-                st.markdown(f"Güç: **{int(n['Overall'])}**")
+                # --- HTML KART YAPISI ---
+                card_html = f"""
+                <div class="player-card">
+                    <div class="card-header">{n['Name']}</div>
+                    <div class="card-sub">{club_str}<br>{n.get('Position','-')} • {int(n.get('Age',0))} Yaş</div>
+                    
+                    <div class="stat-row">
+                        <span class="stat-label">GÜÇ</span>
+                        <span class="stat-val">{int(n['Overall'])}</span>
+                    </div>
+                    <div class="stat-row">
+                        <span class="stat-label">POTANSİYEL</span>
+                        <span class="stat-val">{int(n['Potential'])}</span>
+                    </div>
+                    
+                    <div class="price-tag">{val_str}</div>
+                    
+                    <div class="match-badge" style="background-color: {badge_color}">
+                        %{score:.0f} UYUM
+                    </div>
+                """
                 
-                color = "#00C853" if score > 80 else "#E65100" # Yeşil veya Koyu Turuncu
-                st.markdown(f"Uyum: <span style='color:{color}'><b>%{score:.0f}</b></span>", unsafe_allow_html=True)
+                # Kelepir Kontrolü (%40 daha ucuzsa)
+                if n['Value'] > 0 and n['Value'] < target['Value'] * 0.6: 
+                    card_html += '<div style="margin-top:8px; font-size:0.8rem; color:#2E7D32; font-weight:800;">💰 FIRSAT</div>'
                 
-                if n['Value'] < target['Value'] * 0.5:
-                    st.markdown("💰 _Kelepir_")
+                card_html += "</div>"
                 
-                st.markdown("---")
+                st.markdown(card_html, unsafe_allow_html=True)
 
     elif not search_query:
         st.markdown(
             """
             <div style='text-align: center; color: #006064; margin-top: 100px; opacity: 0.8; font-weight: bold;'>
-            Futbolist AI Database v1.0 • Powered by Python
+            Futbolist AI Database v2.0 • Powered by Python
             </div>
             """, 
             unsafe_allow_html=True
