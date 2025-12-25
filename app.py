@@ -22,7 +22,7 @@ st.set_page_config(
 # Gereksiz uyarıları gizle
 warnings.filterwarnings('ignore')
 
-# --- ÖZEL CSS (TURKUAZ TEMA) ---
+# --- ÖZEL CSS (DÜZELTİLMİŞ RENKLER) ---
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;900&display=swap');
@@ -32,13 +32,24 @@ st.markdown("""
         background-color: #E0F7FA;
     }
     
+    /* GENEL YAZI RENGİ AYARI (Beyazı engellemek için) */
+    html, body, [class*="css"] {
+        font-family: 'Montserrat', sans-serif;
+        color: #004D40; /* Varsayılan yazı rengi: Çok koyu yeşil/siyah */
+    }
+
+    /* Tüm paragraflar, başlıklar ve metinler için zorla koyu renk */
+    p, h1, h2, h3, h4, h5, h6, li, span, div {
+        color: #004D40 !important;
+    }
+
     /* Başlık Stili */
     .main-title {
         font-family: 'Montserrat', sans-serif;
         text-align: center;
         font-size: 3.5rem;
         font-weight: 900;
-        color: #006064; /* Koyu Petrol Yeşili */
+        color: #006064 !important; /* Koyu Petrol Yeşili */
         margin-bottom: 0px;
         letter-spacing: -2px;
         text-transform: uppercase;
@@ -48,7 +59,7 @@ st.markdown("""
     .sub-title {
         text-align: center;
         font-size: 1.2rem;
-        color: #00838F;
+        color: #00838F !important;
         margin-bottom: 35px;
         font-weight: 500;
     }
@@ -61,16 +72,25 @@ st.markdown("""
         border-radius: 30px;
         border: 2px solid #4DD0E1;
         background-color: #ffffff;
-        color: #006064;
+        color: #006064 !important; /* Input içi yazı rengi */
     }
     .stTextInput > div > div > input:focus {
         border-color: #006064;
         box-shadow: 0 0 15px rgba(0, 96, 100, 0.2);
     }
     
-    /* Kartların Arka Planı */
-    div[data-testid="stMetric"], div[data-testid="stMarkdownContainer"] p {
-        color: #006064;
+    /* Metrik Kartları (Sayılar ve Etiketler) */
+    div[data-testid="stMetricValue"] {
+        color: #000000 !important; /* Sayılar Tam Siyah Olsun */
+    }
+    div[data-testid="stMetricLabel"] {
+        color: #006064 !important; /* Etiketler Koyu Yeşil */
+    }
+
+    /* Toast Mesajları */
+    div[data-testid="stToast"] {
+        background-color: #FFFFFF;
+        color: #000000 !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -131,7 +151,8 @@ def load_data_robust():
                 df[col] = 0 if col not in ['Name', 'Club', 'Position', 'Preferred Foot'] else 'Bilinmiyor'
 
         df['Name'] = df['Name'].astype(str)
-        if df['Name'].iloc[0].replace('.', '').isdigit():
+        # Basit bir kontrol: İsim sütunu sadece sayı içeriyorsa yanlış sütundur, düzeltmeyi dene
+        if str(df['Name'].iloc[0]).replace('.', '').isdigit():
             obj_cols = df.select_dtypes(include=['object']).columns
             for c in obj_cols:
                 if not str(df[c].iloc[0]).replace('.', '').isdigit() and len(str(df[c].iloc[0])) > 2:
@@ -223,7 +244,6 @@ def main():
         
         # OYUNCU KARTI
         with st.container():
-            # Kart için beyaz arka planlı bir kutu efekti vermiyoruz, temiz turkuaz üstüne yazıyoruz
             col_img, col_info, col_stats = st.columns([1, 2, 2])
             
             with col_info:
@@ -276,7 +296,7 @@ def main():
                 st.caption(f"{n.get('Club', '-')[:15]}")
                 st.markdown(f"Güç: **{int(n['Overall'])}**")
                 
-                color = "#00C853" if score > 80 else "#FFAB00" # Yeşil veya Turuncu
+                color = "#00C853" if score > 80 else "#E65100" # Yeşil veya Koyu Turuncu
                 st.markdown(f"Uyum: <span style='color:{color}'><b>%{score:.0f}</b></span>", unsafe_allow_html=True)
                 
                 if n['Value'] < target['Value'] * 0.5:
@@ -287,7 +307,7 @@ def main():
     elif not search_query:
         st.markdown(
             """
-            <div style='text-align: center; color: #00838F; margin-top: 100px; opacity: 0.6;'>
+            <div style='text-align: center; color: #006064; margin-top: 100px; opacity: 0.8; font-weight: bold;'>
             Futbolist AI Database v1.0 • Powered by Python
             </div>
             """, 
