@@ -22,6 +22,10 @@ st.set_page_config(
 # Gereksiz uyarıları gizle
 warnings.filterwarnings('ignore')
 
+# --- SESSION STATE (SEÇİM HATIRLAMA) ---
+if 'selected_player_name' not in st.session_state:
+    st.session_state.selected_player_name = None
+
 # --- ÖZEL CSS (GELİŞMİŞ KART TASARIMI) ---
 st.markdown("""
     <style>
@@ -57,14 +61,28 @@ st.markdown("""
     .stTextInput > div > div > input:focus {
         border-color: #006064; box-shadow: 0 0 15px rgba(0, 96, 100, 0.2);
     }
+    
+    /* Seçim Butonları */
+    .stButton > button {
+        width: 100%;
+        border-radius: 10px;
+        border: 1px solid #004D40;
+        color: #004D40;
+        background-color: #ffffff;
+        transition: 0.3s;
+    }
+    .stButton > button:hover {
+        background-color: #B2DFDB;
+        color: #000000;
+    }
 
-    /* --- OYUNCU KARTI TASARIMI (YENİ) --- */
+    /* --- OYUNCU KARTI TASARIMI --- */
     .player-card {
         background-color: #ffffff;
         border-radius: 16px;
         padding: 15px;
         margin: 10px 0;
-        box-shadow: 0 4px 10px rgba(0, 77, 64, 0.08); /* Hafif gölge */
+        box-shadow: 0 4px 10px rgba(0, 77, 64, 0.08);
         border: 1px solid #B2DFDB;
         text-align: center;
         transition: transform 0.2s ease-in-out;
@@ -165,7 +183,6 @@ def load_data_robust():
                 df[col] = 0 if col not in ['Name', 'Club', 'Position', 'Preferred Foot'] else 'Bilinmiyor'
 
         df['Name'] = df['Name'].astype(str)
-        # Hatalı isim sütunu düzeltmesi
         if str(df['Name'].iloc[0]).replace('.', '').isdigit():
             obj_cols = df.select_dtypes(include=['object']).columns
             for c in obj_cols:
@@ -205,20 +222,32 @@ def yazili_analiz_uret(p):
     if not analizler: return "Standart Profil"
     return "   •   ".join(analizler)
 
+# --- GELİŞTİRİLMİŞ ARAMA MOTORU ---
 def find_smart_match(df, user_input):
     clean_input = normalize_text(user_input)
+    
+    # 1. İçinde Geçenler (Substring) - Örn: "brahim" -> "Brahim Diaz", "Ibrahimovic"
     matches = df[df['Clean_Name'].str.contains(clean_input, na=False)]
     
-    if not matches.empty:
-        return matches.sort_values(by='Overall', ascending=False).iloc[0], "Tam"
+    # Eğer tek bir tane varsa direkt döndür
+    if len(matches) == 1:
+        return matches.iloc[0], "Tam"
     
+    # Eğer birden fazla varsa, en yüksek reytingli 5 tanesini liste olarak döndür
+    elif len(matches) > 1:
+        return matches.sort_values(by='Overall', ascending=False).head(5), "Liste"
+    
+    # 2. Benzerlik Araması (Fuzzy) - Eğer substring bulamazsa
     all_names = df['Clean_Name'].unique().tolist()
-    close_matches = difflib.get_close_matches(clean_input, all_names, n=1, cutoff=0.5)
+    close_matches = difflib.get_close_matches(clean_input, all_names, n=5, cutoff=0.5)
     
     if close_matches:
-        found_name_clean = close_matches[0]
-        target_row = df[df['Clean_Name'] == found_name_clean].sort_values(by='Overall', ascending=False).iloc[0]
-        return target_row, "Tahmin"
+        # Bulunan benzer isimlerin verilerini çek
+        candidates = df[df['Clean_Name'].isin(close_matches)].sort_values(by='Overall', ascending=False)
+        # Eğer sadece 1 tane güçlü tahmin varsa onu döndür, yoksa liste ver
+        if len(candidates) == 1:
+            return candidates.iloc[0], "Tahmin"
+        return candidates, "Liste"
         
     return None, None
 
@@ -248,14 +277,39 @@ def main():
     search_query = ""
 
     with c2:
-        search_query = st.text_input("", placeholder="Oyuncu ara... (Örn: Icardi, Messi, Arda Güler)", label_visibility="collapsed")
+        # Callback ekleyerek, yeni arama yapıldığında eski seçimi sıfırla
+        def clear_selection():
+            st.session_state.selected_player_name = None
+            
+        search_query = st.text_input("", placeholder="Oyuncu ara... (Örn: Icardi, Messi, Brahim)", label_visibility="collapsed", on_change=clear_selection)
         
-        if search_query:
-            target, match_type = find_smart_match(df, search_query)
-            if target is None:
+        if search_query and st.session_state.selected_player_name is None:
+            result, match_type = find_smart_match(df, search_query)
+            
+            if result is None:
                 st.toast(f"❌ '{search_query}' bulunamadı.", icon="⚠️")
-            elif match_type == "Tahmin":
-                st.toast(f"✅ Düzeltildi: {target['Name']}", icon="✨")
+                
+            elif match_type == "Liste":
+                # --- ÇOKLU EŞLEŞME DURUMU ---
+                st.info(f"🤔 '{search_query}' için birden fazla oyuncu buldum. Hangisi?")
+                
+                # Adayları buton olarak göster
+                for idx, row in result.iterrows():
+                    # Benzersiz key oluşturmak için ID veya index kullanıyoruz
+                    btn_label = f"{row['Name']} ({row['Club']} - {row['Overall']})"
+                    if st.button(btn_label, key=f"btn_{idx}"):
+                        st.session_state.selected_player_name = row['Name'] # Seçimi kaydet
+                        st.rerun() # Sayfayı yenile ki aşağıda analiz açılsın
+
+            elif match_type == "Tam" or match_type == "Tahmin":
+                target = result
+                if match_type == "Tahmin":
+                    st.toast(f"✅ Düzeltildi: {target['Name']}", icon="✨")
+
+    # --- SEÇİLMİŞ OYUNCU VARSA HEDEFİ GÜNCELLE ---
+    if st.session_state.selected_player_name:
+        # İsme göre tam eşleşmeyi bul
+        target = df[df['Name'] == st.session_state.selected_player_name].iloc[0]
 
     # --- SONUÇ EKRANI ---
     if target is not None:
@@ -281,12 +335,11 @@ def main():
                 
                 st.progress(int(target['Overall'])/100, text="Potansiyel Doluluk Oranı")
 
-        # --- AI BENZERLİK ANALİZİ (YENİ KART TASARIMI) ---
+        # --- AI BENZERLİK ANALİZİ ---
         st.divider()
         st.markdown("#### 🧬 Futbolist AI Scout Önerileri")
         
         target_pos = target.get('Position', None)
-        # Sadece aynı veya benzer mevkileri al (Veri setine göre esnetilebilir)
         pool = df[df['Position'] == target_pos].copy() if target_pos else df.copy()
         if len(pool) < 6: pool = df.copy()
 
@@ -312,17 +365,15 @@ def main():
             dist = suggestion_dists[i]
             score = max(0, 100 - (dist * 10))
             
-            # Renk ve Stil Mantığı
-            if score >= 90: badge_color = "#43A047" # Canlı Yeşil
-            elif score >= 80: badge_color = "#FB8C00" # Turuncu
-            else: badge_color = "#E53935" # Kırmızı
+            if score >= 90: badge_color = "#43A047"
+            elif score >= 80: badge_color = "#FB8C00"
+            else: badge_color = "#E53935"
 
             val_str = format_money(n['Value'])
             club_str = n.get('Club', 'Bilinmiyor')
             if len(str(club_str)) > 15: club_str = str(club_str)[:13] + ".."
 
-            # --- DÜZELTME: HTML KODLARI SOLA YASLANDI ---
-            # Streamlit'in HTML'i kod bloğu sanmaması için girintiyi sildik.
+            # HTML Kodları
             card_html = f"""<div class="player-card">
 <div class="card-header">{n['Name']}</div>
 <div class="card-sub">{club_str}<br>{n.get('Position','-')} • {int(n.get('Age',0))} Yaş</div>
@@ -337,11 +388,10 @@ def main():
 <div class="price-tag">{val_str}</div>
 <div class="match-badge" style="background-color: {badge_color}">%{score:.0f} UYUM</div>"""
                 
-            # Kelepir Kontrolü
             if n['Value'] > 0 and n['Value'] < target['Value'] * 0.6: 
                 card_html += '<div style="margin-top:8px; font-size:0.8rem; color:#2E7D32; font-weight:800;">💰 FIRSAT</div>'
             
-            card_html += "</div>" # Kapanış Div
+            card_html += "</div>"
             
             with cols[i]:
                 st.markdown(card_html, unsafe_allow_html=True)
@@ -350,7 +400,7 @@ def main():
         st.markdown(
             """
             <div style='text-align: center; color: #006064; margin-top: 100px; opacity: 0.8; font-weight: bold;'>
-            Futbolist AI Database v2.0 • Powered by Python
+            Futbolist AI Database v2.1 • Powered by Python
             </div>
             """, 
             unsafe_allow_html=True
